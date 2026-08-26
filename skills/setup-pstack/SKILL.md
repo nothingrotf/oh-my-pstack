@@ -32,6 +32,15 @@ Continue setup only when the `subagent` tool and the expected agents are visible
 The package supplies the delegation facility; it does not choose pstack's model
 policy by itself.
 
+### OpenCode delegation prerequisite
+
+OpenCode has its own native primary and subagent agents. Do not install
+`pi-subagents` or write Pi-specific settings when the current host is OpenCode.
+Use the agents and concrete `provider/model-id` choices reported by OpenCode, and
+keep their model configuration in the host's `opencode.json` or
+`opencode.jsonc`. If OpenCode does not expose a usable subagent, report that
+limitation instead of substituting a Pi-specific mechanism.
+
 ### 1. Detect available choices
 
 Detect both of these independently:
@@ -68,12 +77,13 @@ available; otherwise ask one focused question in normal conversation.
 
 If the host exposes models but no task or subagent facility, stop model mapping
 with an explicit capability report. For native Pi, recommend
-`pi install npm:pi-subagents`, a restart, and `/subagents-doctor`. Say that no
-pstack role can receive a different model in this session, that all skills run on
-the active model, and that the user can switch it with Pi's `/model` command or
-`pi --model provider/model-id`. Do not present the portable defaults as an
-assignment and do not overwrite an existing role configuration with inactive
-aliases.
+`pi install npm:pi-subagents`, a restart, and `/subagents-doctor`. For OpenCode,
+explain that its native agents are not visible or configured and point the user
+to the host's agent configuration. For any other host, name the missing
+capability without proposing a vendor-specific substitute. Say that no pstack
+role can receive a different model in this session and do not present the
+portable defaults as an assignment or overwrite an existing role configuration
+with inactive aliases.
 
 For panel roles (`how critics`, `arena runners`, `arena cross-judge pool`, `architect runners`, and `interrogate reviewers`), one child runs per entry, so list length controls fan-out. Prefer diversity for judgment-sensitive panels. `swarm workers` is the default choice for every worker unless a race assigns a different choice per arm.
 
@@ -147,12 +157,17 @@ Write the selected IDs under `subagents.agentOverrides.<agent>.model`:
 }
 ```
 
+For OpenCode, do not write `.pi/settings.json`. Keep the concrete model choices in
+the user's existing `opencode.json` or `opencode.jsonc`, and use the live
+OpenCode agent names in the pstack role map. Preserve unrelated configuration.
+
 ### 6. Confirm
 
 If a concrete configuration was written, tell the user the exact path and list
 the model IDs assigned to each role family. For Pi, name both `.pstack/config.md`
 and `.pi/settings.json`, and tell the user to run `/subagents-models` to inspect
-the live mapping. State that configuration does not create models, child agents,
+the live mapping. For OpenCode, name the `opencode.json` or `opencode.jsonc`
+path used. State that configuration does not create models, child agents,
 permissions, or delegation facilities.
 
 If the host lacks per-child model selection, report that no role configuration was

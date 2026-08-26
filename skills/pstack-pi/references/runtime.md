@@ -88,6 +88,24 @@ Invoke skills by their host-supported skill name, normally `/skill:<name>` or `$
 Within this package, sibling files are under `skills/<name>/`. Do not use a
 vendor-specific plugin path or assume a global installation path.
 
+OpenCode's native Agent Skills loader looks in `.opencode/skills/` for a project or
+`~/.config/opencode/skills/` globally. When installing this repository for
+OpenCode, copy the contents of this package's `skills/` directory into one of
+those locations. OpenCode loads a skill on demand through its native `skill`
+tool; it does not automatically scan an arbitrary cloned repository directory.
+OpenCode's built-in primary and subagents are the delegation surface. Use the
+host's `opencode.json` or `opencode.jsonc` model configuration and live agent
+inventory rather than assuming Pi's `pi-subagents` settings apply.
+
+OpenCode's native Agent Skills loader looks in `.opencode/skills/` for a project or
+`~/.config/opencode/skills/` globally. When installing this repository for
+OpenCode, copy the contents of this package's `skills/` directory into one of
+those locations. OpenCode loads a skill on demand through its native `skill`
+tool; it does not automatically scan an arbitrary cloned repository directory.
+OpenCode's built-in primary and subagents are the delegation surface. Use the
+host's `opencode.json` or `opencode.jsonc` model configuration and live agent
+inventory rather than assuming Pi's `pi-subagents` settings apply.
+
 ## Transcripts and history
 
 Transcript-dependent skills accept an explicit transcript directory or host history

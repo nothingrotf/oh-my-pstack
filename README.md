@@ -1,7 +1,8 @@
 # oh-my-pstack
 
 Portable, rigorous engineering workflows for [OMP](https://omp.sh/), Pi,
-Claude Code, Codex, and other hosts that support the Agent Skills layout.
+[OpenCode](https://opencode.ai/), Claude Code, Codex, and other hosts that support
+the Agent Skills layout.
 
 `oh-my-pstack` is a universal port of the original
 [Cursor pstack](https://github.com/cursor/plugins/tree/main/pstack). It keeps the
@@ -16,7 +17,8 @@ adapter.
 - `poteto-mode` for routing work through the right playbook.
 - `pstack-pi` for translating roles, delegation, models, transcripts, questions,
   and long-running work to the active host.
-- Native package metadata for OMP/Pi, Claude Code, and Codex.
+- Native package metadata for OMP/Pi, Claude Code, and Codex, plus OpenCode setup
+  guidance.
 - Daily upstream synchronization that opens a verified pull request.
 
 The original Cursor repository is the content authority. The dsebban repository
@@ -67,6 +69,40 @@ For local development, load the checkout directly:
 ```bash
 omp --plugin-dir /path/to/oh-my-pstack
 ```
+
+### OpenCode
+
+OpenCode natively loads Agent Skills from `.opencode/skills/` in a project or
+`~/.config/opencode/skills/` globally. Install the repository and copy its skills
+into one of those discovery directories:
+
+```bash
+git clone https://github.com/shrimpwtf/oh-my-pstack.git \
+  ~/.local/share/oh-my-pstack
+mkdir -p ~/.config/opencode/skills
+cp -R ~/.local/share/oh-my-pstack/skills/. ~/.config/opencode/skills/
+```
+
+Start OpenCode in your project. The skills appear through OpenCode's native
+`skill` tool; ask it to load `setup-pstack` or `poteto-mode` by name. To update,
+pull the repository and repeat the copy step:
+
+```bash
+git -C ~/.local/share/oh-my-pstack pull --ff-only
+cp -R ~/.local/share/oh-my-pstack/skills/. ~/.config/opencode/skills/
+```
+
+For project-local installation, use `.opencode/skills/` instead:
+
+```bash
+git clone https://github.com/shrimpwtf/oh-my-pstack.git .pstack-source
+mkdir -p .opencode/skills
+cp -R .pstack-source/skills/. .opencode/skills/
+```
+
+OpenCode already provides primary and subagents. Configure their models through
+your normal `opencode.json` or `opencode.jsonc` settings, then ask `setup-pstack`
+to map pstack roles to the agents your OpenCode installation exposes.
 
 ### Claude Code and Codex
 
