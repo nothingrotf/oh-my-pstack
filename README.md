@@ -130,17 +130,16 @@ Run the setup skill once:
 $setup-pstack
 ```
 
-It detects the roles and models your host actually exposes, lets you choose the
-defaults for implementation and review work when the host supports per-child
-model selection. On a task-capable host, it writes concrete
-`provider/model-id` assignments to `.pstack/config.md` (or to `$PSTACK_CONFIG`
-when set). Native Pi can list and switch the single active model, but it does not
-include subagents. Install `pi-subagents`, restart Pi, and run
-`/subagents-doctor` before setup if you want role assignments. Setup then writes
-the pstack role map and Pi's `subagents.agentOverrides` with concrete model IDs.
-Without the extension, setup reports the limitation instead of pretending that
-role assignments are active. Switch Pi's single active model with `/model` or
-`pi --model provider/model-id`.
+It detects the models that your host exposes and verifies per-child model
+selection. It then configures every original pstack model role. On Pi, choices
+use `provider/model-id:thinking` and live in `.pstack/config.md` or
+`$PSTACK_CONFIG`. Setup does not change host agent settings.
+
+Native Pi can list and switch one active model, but it does not include
+subagents. Install `pi-subagents`, restart Pi, and run `/subagents-doctor` before
+setup. Each pstack workflow passes its configured choice through the child
+launch `model` field. Without the extension, setup reports the missing delegation
+capability and writes no active model configuration.
 
 Then route your first real task through the main workflow:
 
@@ -196,8 +195,9 @@ the upstream lock, and forbidden vendor-specific runtime bindings.
 ## Host contract
 
 Read `skills/pstack-pi/references/runtime.md` before adapting a workflow to a new
-agent host. It defines canonical roles, capability mapping, configuration paths,
-transcript handling, interaction fallbacks, and verification ownership.
+agent host. It separates pstack model roles from execution roles. It also defines
+capability mapping, configuration paths, transcript handling, interaction
+fallbacks, and verification ownership.
 
 ## License and attribution
 

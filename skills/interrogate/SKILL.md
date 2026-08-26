@@ -6,7 +6,9 @@ disable-model-invocation: true
 
 # Interrogate
 
-Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for reviewer panels, concurrent child execution, model choices, and questions.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for reviewer panels, execution roles, model roles, and questions.
+
+`interrogate reviewers` is a pstack model role. Each entry selects one reviewer's per-run model. Every reviewer can use the same execution role.
 
 Spawn one reviewer per configured model to adversarially review code changes. Each model gets the same prompt and rubric. The adversarial signal comes from model diversity, not assigned personas. Models differ in blind spots, priors, and reasoning patterns. Agreement across models is high-confidence signal; lone-model findings are worth reading but lower confidence.
 
@@ -35,9 +37,9 @@ Write one clear paragraph. Reviewers challenge whether the work achieves the int
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers concurrently through the host's task facility. Use the `interrogate reviewers` panel from the portable pstack configuration when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels to the configured entry count. Otherwise use a diverse host-supported panel drawn from `reviewer`, `planner`, `designer`, and `inherit-parent`.
+Resolve the `interrogate reviewers` panel. Launch one read-only child per configured entry, concurrently. Use execution role `reviewer` for every child and pass its entry as the per-run `model`. Extend or shrink the Reviewer A/B/C/D labels to the entry count. If no panel exists, use a diverse host-supported fallback panel.
 
-Each reviewer is read-only and receives the configured panel choice plus a standalone brief. If a configured choice is unavailable, use the closest live role or model exposed by the host and record the substitution; do not block the review. `inherit-parent` and `auto` mean to omit an explicit model choice.
+If a configured model is unavailable, use the closest live model and record the substitution. Map `inherit-parent` and `auto` through the host's explicit inheritance mechanism.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -28,6 +28,58 @@ test("protected paths remain outside automatic upstream ownership", () => {
   assert.equal(isProtectedPath("skills/how/SKILL.md"), true);
   assert.equal(isProtectedPath("skills/arena/SKILL.md"), true);
   assert.equal(isProtectedPath("skills/why/references/sources/slack.md"), false);
+});
+
+test("a changed file under a protected prefix blocks the update", async () => {
+  const fixture = await mkdtemp(join(tmpdir(), "pstack-protected-prefix-test-"));
+  const source = join(fixture, "source");
+  const target = join(fixture, "target");
+  try {
+    const sourceSkill = join(source, "pstack/skills/poteto-mode/SKILL.md");
+    const targetSkill = join(target, "skills/poteto-mode/SKILL.md");
+    await mkdir(join(source, "pstack/skills/poteto-mode"), { recursive: true });
+    await mkdir(join(target, "skills/poteto-mode"), { recursive: true });
+    await writeFile(sourceSkill, "upstream baseline\n");
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: source });
+    execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
+    execFileSync("git", ["config", "user.name", "pstack test"], { cwd: source });
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "baseline"], { cwd: source });
+    const baseline = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim();
+    await writeFile(sourceSkill, "upstream changed\n");
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "change protected skill"], { cwd: source });
+    await writeFile(targetSkill, "portable adaptation\n");
+    await writeFile(
+      join(target, "upstream.lock.json"),
+      `${JSON.stringify({
+        repository: "local",
+        ref: "main",
+        path: "pstack",
+        commit: baseline,
+        protectedPrefixes: ["skills/poteto-mode/"],
+        protectedPaths: [],
+        sourceRoots: [{ source: "pstack/skills", destination: "skills" }],
+      })}\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "scripts/sync-upstream.mjs"), "--apply", "--source", source],
+      { cwd: target, env: { ...process.env, PSTACK_SYNC_ROOT: target }, encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /skills\/poteto-mode\/SKILL\.md/u);
+    assert.equal(await readFile(targetSkill, "utf8"), "portable adaptation\n");
+    const lock = JSON.parse(await readFile(join(target, "upstream.lock.json"), "utf8"));
+    assert.equal(lock.commit, baseline);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
 });
 
 test("apply updates an upstream-owned file and advances the lock", async () => {

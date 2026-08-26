@@ -82,9 +82,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 ## Delegation
 
-`poteto-mode` is the sole router. It selects the playbook, step order, canonical role, and lifecycle protocol. The `pstack-pi` adapter translates host mechanics. Never copy a backend's command syntax into a routed skill.
+`poteto-mode` is the sole router. It selects the playbook, pstack model role, execution role, step order, and lifecycle protocol. The `pstack-pi` adapter translates host mechanics. Never copy a backend's command syntax into a routed skill.
 
-Use these canonical roles:
+Pstack model roles and execution roles are independent. A model role is an original configuration line. An execution role defines child behavior.
+
+Use these execution roles:
 
 | Role | Responsibility |
 |---|---|
@@ -101,7 +103,11 @@ Use these canonical roles:
 
 Use only these canonical lifecycle protocols: **Bounded session**, **Panel**, **Long-lived owner**, and **One-shot watcher**. Their mechanics live in the active adapter. Start every Panel participant before waiting for any result. Keep implementers, reviewers, judges, and synthesizers separate. A child never starts another child; it returns proposed briefs to the root.
 
-Pass concise file pointers and explicit worktree or output paths. Review every artifact and run parent verification. Use a fresh session when the unit or role changes. Agreement across independent sessions is useful evidence, not proof. Model selection belongs to the active runtime's role configuration, not the routed skill.
+Pass concise file pointers and explicit worktree or output paths. Review every artifact and run parent verification. Use a fresh session when the unit or role changes. Agreement across independent sessions is useful evidence, not proof.
+
+Resolve the exact workflow model role before every child launch. Pass its configured choice through the adapter's per-run `model` field. Never translate a pstack model role into a host agent default.
+
+Use `judgment and prose` for delegated prose or judgment without a more specific workflow model role. Use `hardest tasks` for the hardest ambiguous or cross-cutting delegated unit. The active playbook's specific model role wins over both general roles.
 
 ## Writing the reply
 

@@ -5,7 +5,9 @@ description: "Use for 'why does X work this way', 'why we picked Y', design rati
 
 # Why
 
-Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for tool discovery, researcher and synthesizer roles, model choices, concurrency, and unavailable-capability reporting.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for tool discovery, execution roles, model roles, concurrency, and unavailable-capability reporting.
+
+`why investigators` and `why synthesizer` are pstack model roles. Resolve each exact key and pass its concrete choice through the child launch per-run `model` field. Select execution roles independently.
 
 Investigate the motivation and intent behind code. Why was it built this way? What edge cases were considered? What product, business, or operational constraints shaped the design? What alternatives were rejected, and why?
 
@@ -117,7 +119,7 @@ Aim for a complete **coverage map**, not a minimal one. A null result from an is
 
 Launch all matching investigators in a single message so they run concurrently. One investigator per category lets each specialize in one tool's query vocabulary and result shape. Don't ask one agent to cover multiple MCPs.
 
-For each category, use the configured `why investigators` choice when present; otherwise use the canonical `researcher` role. Give investigators access to the matching host tool while forbidding writes in every standalone brief. If the host cannot combine a read-only repository posture with external-tool access, preserve tool access and enforce no writes in the brief rather than assuming a vendor-specific mode.
+Use execution role `researcher` for each category. When the `why investigators` model role exists, pass its configured choice as every investigator's per-run `model`. Give investigators access to the matching host tool while forbidding writes in every standalone brief. If the host cannot combine a read-only repository posture with external-tool access, preserve tool access and enforce no writes in the brief.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
@@ -159,7 +161,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-Launch one `synthesizer` child, using the configured `why synthesizer` choice when present. Give it the host tools needed to spot-verify citations while forbidding repository writes in its standalone brief.
+Launch one child with execution role `synthesizer`. When the `why synthesizer` model role exists, pass its configured choice as the child's per-run `model`. Give it the host tools needed to verify citations while forbidding repository writes in its standalone brief.
 
 The synthesizer gets:
 1. The investigator findings, including any null results and any categories skipped with justification

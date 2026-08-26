@@ -5,7 +5,9 @@ description: "Use for \"how does X work\", code walkthroughs before changing som
 
 # How
 
-Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for explorer, synthesizer, and reviewer roles, model choices, and host fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for execution roles, model roles, and host fallbacks.
+
+`how explorer`, `how explainer`, and `how critics` are pstack model roles. Resolve each exact key and pass every concrete choice through the child launch per-run `model` field. Select the execution role independently.
 
 Explore the codebase to answer "how does X work?" questions. Produce clear architectural explanations at the level of a senior engineer onboarding onto a subsystem. Enough to build a working mental model, not annotated source code.
 
@@ -44,7 +46,7 @@ Decompose the question into 2-4 parallel exploration angles, each a distinct sli
 
 The right decomposition depends on the question. Use your judgment. Narrow questions: 2 explorers is fine. Broad subsystems: up to 4.
 
-Launch all explorers concurrently through the host's task facility. Use the configured `how explorer` choice when present; otherwise use the canonical `explorer` role. Every explorer is read-only and receives a standalone brief.
+Launch all explorers concurrently through the host's task facility. Use execution role `explorer`. When the `how explorer` model role exists, pass its configured choice as each child's per-run `model`. Every explorer is read-only and receives a standalone brief.
 
 Each explorer gets the same base prompt from `references/explorer-prompt.md` plus a specific exploration angle naming its slice. Each explorer should:
 - Start broad: use the host's file search for relevant directories and text or symbol search for key types, interfaces, and class names
@@ -59,7 +61,7 @@ Then proceed to Step 3.
 
 ### Step 2b. Direct Explain (simple questions)
 
-Launch one read-only child that explores and explains in one pass. Use the configured `how explainer` choice when present; otherwise use the canonical `synthesizer` role.
+Launch one read-only child with execution role `synthesizer`. When the `how explainer` model role exists, pass its configured choice as the child's per-run `model`.
 
 The agent does its own exploration with the host's file search, text search, and file-read capabilities and writes the explanation directly. Read `references/explainer-prompt.md` for the communication style and output format. Same structure, just no explorer findings as input.
 
@@ -67,7 +69,7 @@ Proceed to Step 4.
 
 ### Step 3. Synthesize (complex questions only)
 
-Once all explorers return, launch one read-only child to synthesize their findings into a coherent explanation. Use the configured `how explainer` choice when present; otherwise use the canonical `synthesizer` role.
+Once all explorers return, launch one read-only child with execution role `synthesizer`. Pass the configured `how explainer` choice as its per-run `model` when that model role exists.
 
 The explainer gets all explorers' findings and writes the human-facing explanation (output format below). Read `references/explainer-prompt.md` for the full prompt template. The explainer reconciles overlapping findings, resolves contradictions, and weaves the slices into a unified picture.
 
@@ -99,9 +101,9 @@ Run the full explain flow above (Steps 1-4). You must understand the architectur
 
 ### Step 2. Spawn Critics
 
-After the explanation is complete, launch one architectural critic per choice in the configured `how critics` panel, concurrently. If no panel is configured, use a diverse host-supported panel drawn from `reviewer`, `planner`, `designer`, and `inherit-parent`.
+After the explanation is complete, resolve the `how critics` panel. Launch one architectural critic per configured model entry, concurrently. Use execution role `reviewer` for each critic and pass that entry as its per-run `model`. If no panel exists, use a diverse host-supported fallback panel.
 
-Each critic is read-only and gets one panel choice. The lead may select a stronger host-supported choice when the architecture warrants deeper analysis.
+Each critic is read-only. The lead can select a stronger host-supported model when the architecture warrants deeper analysis. Record that substitution.
 
 Read `references/critic-prompt.md` for the prompt template. Each critic gets:
 1. The explanation from Step 1 (so they don't re-explore)
