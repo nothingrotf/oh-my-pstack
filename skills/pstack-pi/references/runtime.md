@@ -38,10 +38,38 @@ delegation and the active playbook requires it.
 
 ## Models
 
-Use role aliases or the host's configured model mapping. Never copy a vendor-specific
-model slug into a new configuration. `inherit-parent` means the current conversation's
-model. A missing role entry means the host default. A panel is a list of role or model
+Model inventory is not model delegation. A host may list models that the current
+conversation can use without exposing any task or subagent facility that can send
+a child to one of those models. Native Pi has this boundary: `pi --list-models`
+and `/model` select the single active conversation model, while Pi does not
+include built-in subagents.
+
+For native Pi, install the maintained `pi-subagents` package when per-role models
+or parallel children are required:
+
+```bash
+pi install npm:pi-subagents
+```
+
+Restart Pi and run `/subagents-doctor`. Once the `subagent` tool is visible,
+configure its `subagents.agentOverrides` in `.pi/settings.json`. The package's
+built-in agents map to pstack roles as follows: `scout` for `explorer` and
+`watcher`, `researcher` for `researcher`, `worker` for `implementer` and
+`mechanical`, `reviewer` for `reviewer`, `oracle` for planning and synthesis, and
+`delegate` for an `owner`.
+
+Use concrete `provider/model-id` values only when the host exposes per-child model
+selection and the value was confirmed in the live inventory. Use role aliases only
+when the host explicitly documents a role-to-model mapping. `inherit-parent` means
+the current conversation's model only when the host can pass it to a child. A
+missing role entry means the host default. A panel is a list of role or model
 choices, and its size controls fan-out.
+
+When the host has models but no child delegation, do not write a role mapping that
+looks active. Report the capability gap and tell the user to switch Pi's single
+active model with `/model` or `pi --model provider/model-id`. Workflow skills still
+run on that active model, but panel and child-agent behavior is unavailable unless
+the user installs a host extension or uses a different runtime that provides it.
 
 The optional configuration path is `$PSTACK_CONFIG`. If it is unset, use
 `.pstack/config.md` in the current project for project-local settings. Do not write

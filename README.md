@@ -43,6 +43,17 @@ installed Git packages, or `pi remove https://github.com/shrimpwtf/oh-my-pstack`
 to remove it. Pi packages run with full system access; review the source before
 installing and keep the package pinned or update it deliberately.
 
+For parallel workers and per-role model assignments, install Pi's delegation
+extension too:
+
+```bash
+pi install npm:pi-subagents
+```
+
+Restart Pi and run `/subagents-doctor`. The extension provides the `subagent` tool
+and built-in `scout`, `researcher`, `worker`, `reviewer`, `oracle`, and `delegate`
+agents. It is separate from pstack because native Pi does not include subagents.
+
 ### OMP
 
 Install from GitHub:
@@ -84,10 +95,16 @@ $setup-pstack
 ```
 
 It detects the roles and models your host actually exposes, lets you choose the
-defaults for implementation and review work, and writes portable project-local
-configuration to `.pstack/config.md` (or to `$PSTACK_CONFIG` when set). It does
-not create models, permissions, integrations, or child-agent capabilities that
-your host does not provide.
+defaults for implementation and review work when the host supports per-child
+model selection. On a task-capable host, it writes concrete
+`provider/model-id` assignments to `.pstack/config.md` (or to `$PSTACK_CONFIG`
+when set). Native Pi can list and switch the single active model, but it does not
+include subagents. Install `pi-subagents`, restart Pi, and run
+`/subagents-doctor` before setup if you want role assignments. Setup then writes
+the pstack role map and Pi's `subagents.agentOverrides` with concrete model IDs.
+Without the extension, setup reports the limitation instead of pretending that
+role assignments are active. Switch Pi's single active model with `/model` or
+`pi --model provider/model-id`.
 
 Then route your first real task through the main workflow:
 
