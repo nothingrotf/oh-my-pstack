@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Show me your work
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for transcript discovery, reviewer selection, model identity, and unavailable-capability fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for transcript discovery, reviewer selection, model identity, and unavailable-capability fallbacks.
 
 For work a human reviews after the fact, a decision trail lets them reconstruct what was decided, why, and on what evidence, without rerunning the work or reading the whole transcript. Keep one canonical log so the trail is consistent and a future agent can find it.
 

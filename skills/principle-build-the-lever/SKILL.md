@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 # Build the Lever
 
-When delegation is involved, follow the [portable runtime contract](../pstack-omp/references/runtime.md) for child briefs, ownership, and writable scope.
+When delegation is involved, follow the [portable runtime contract](../pstack-pi/references/runtime.md) for child briefs, ownership, and writable scope.
 
 When the work isn't trivial, build the tool that does it instead of doing it by hand.
 

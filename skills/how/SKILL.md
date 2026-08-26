@@ -5,7 +5,7 @@ description: "Use for \"how does X work\", code walkthroughs before changing som
 
 # How
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for explorer, synthesizer, and reviewer roles, model choices, and host fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for explorer, synthesizer, and reviewer roles, model choices, and host fallbacks.
 
 Explore the codebase to answer "how does X work?" questions. Produce clear architectural explanations at the level of a senior engineer onboarding onto a subsystem. Enough to build a working mental model, not annotated source code.
 

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Arena
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for child briefs, parallel execution, panels, models, and fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for child briefs, parallel execution, panels, models, and fallbacks.
 
 Fan out N parallel attempts at the same task. Read every candidate end to end. Pick the strongest as the base. Graft the best ideas from the others into it. Verify the synthesized result.
 

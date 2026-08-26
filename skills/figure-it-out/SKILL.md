@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Figure it out
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) whenever this workflow invokes sibling skills, delegates work, selects roles or models, or records a long-running checkpoint.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) whenever this workflow invokes sibling skills, delegates work, selects roles or models, or records a long-running checkpoint.
 
 When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away. Bias toward more rigor. The cost of building the wrong thing dwarfs the cost of being careful.
 

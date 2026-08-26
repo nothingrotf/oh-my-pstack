@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Interrogate
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for reviewer panels, concurrent child execution, model choices, and questions.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for reviewer panels, concurrent child execution, model choices, and questions.
 
 Spawn one reviewer per configured model to adversarially review code changes. Each model gets the same prompt and rubric. The adversarial signal comes from model diversity, not assigned personas. Models differ in blind spots, priors, and reasoning patterns. Agreement across models is high-confidence signal; lone-model findings are worth reading but lower confidence.
 

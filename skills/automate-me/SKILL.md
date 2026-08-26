@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Automate me
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for transcript discovery, questions, child roles, skill paths, and skill invocation.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for transcript discovery, questions, child roles, skill paths, and skill invocation.
 
 A guided flow for turning the user's working conventions into a skill agents will follow. The output is one `-mode` skill tailored to them (e.g. `jay-mode`, `priya-mode`).
 

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Swarm
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for worker roles, concurrent execution, models, writable isolation, and unavailable-capability fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for worker roles, concurrent execution, models, writable isolation, and unavailable-capability fallbacks.
 
 Fan out N parallel workers through the current host. They may cover separate slices, race the same brief, or mix both. The parent waits, aggregates, and returns one report.
 

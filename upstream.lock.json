@@ -5,7 +5,7 @@
   "commit": "bdf7aa355337897f167153e05069aca505dae17c",
   "protectedPrefixes": [
     "skills/poteto-mode/",
-    "skills/pstack-omp/",
+    "skills/pstack-pi/",
     "skills/orchestrate-omp/"
   ],
   "protectedPaths": [

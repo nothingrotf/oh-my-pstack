@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Architect
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for skill invocation, role selection, panels, and model configuration.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for skill invocation, role selection, panels, and model configuration.
 
 Design before implementing. Sketch types, function signatures, class shapes, and module boundaries with `not implemented` bodies and pseudocode. Synthesize across multiple model perspectives, then fill in code against the chosen sketch. If implementation proves the sketch wrong, throw it out and redesign.
 

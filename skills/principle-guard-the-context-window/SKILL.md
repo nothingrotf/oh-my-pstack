@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Guard the Context Window
 
-When delegation is involved, follow the [portable runtime contract](../pstack-omp/references/runtime.md) for child roles and unavailable-capability fallbacks.
+When delegation is involved, follow the [portable runtime contract](../pstack-pi/references/runtime.md) for child roles and unavailable-capability fallbacks.
 
 The context window is finite and non-renewable within a session. Every token that enters should earn its place.
 

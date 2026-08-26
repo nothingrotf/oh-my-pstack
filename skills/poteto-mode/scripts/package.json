@@ -1,5 +1,5 @@
 {
-  "name": "@pstack-omp/poteto-mode-tools",
+  "name": "@pstack-pi/poteto-mode-tools",
   "private": true,
   "type": "module",
   "scripts": {

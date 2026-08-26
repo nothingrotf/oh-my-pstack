@@ -14,7 +14,7 @@ adapter.
 - 44 upstream pstack skills and their supporting references.
 - Benny's three fail-closed issue-triage/reproduction skills.
 - `poteto-mode` for routing work through the right playbook.
-- `pstack-omp` for translating roles, delegation, models, transcripts, questions,
+- `pstack-pi` for translating roles, delegation, models, transcripts, questions,
   and long-running work to the active host.
 - Native package metadata for OMP/Pi, Claude Code, and Codex.
 - Daily upstream synchronization that opens a verified pull request.
@@ -22,28 +22,52 @@ adapter.
 The original Cursor repository is the content authority. The dsebban repository
 was used only as an early structural example; it is not an upstream source.
 
-## Quick start
+## Install
 
-### OMP / Pi
+### Pi
 
-Load the package for a session:
+Install the public GitHub package:
+
+```bash
+pi install https://github.com/shrimpwtf/oh-my-pstack
+```
+
+Start Pi in your project:
+
+```bash
+pi
+```
+
+Use `pi list` to confirm the package. Use `pi update --extensions` to reconcile
+installed Git packages, or `pi remove https://github.com/shrimpwtf/oh-my-pstack`
+to remove it. Pi packages run with full system access; review the source before
+installing and keep the package pinned or update it deliberately.
+
+### OMP
+
+Install from GitHub:
+
+```bash
+omp install https://github.com/shrimpwtf/oh-my-pstack
+```
+
+For local development, load the checkout directly:
 
 ```bash
 omp --plugin-dir /path/to/oh-my-pstack
 ```
 
-Start substantial work with `poteto-mode`. Use `pstack-omp` when a workflow needs
+### Claude Code and Codex
+
+Clone or download the repository, then add it through the host's local plugin
+workflow. Claude Code reads `.claude-plugin/plugin.json`; Codex reads
+`.codex-plugin/plugin.json`. If plugin installation is unavailable, point the
+host's Agent Skills configuration at the repository's `skills/` directory.
+
+## Quick start
+
+Start substantial work with `poteto-mode`. Use `pstack-pi` when a workflow needs
 delegation or host-specific lifecycle behavior.
-
-### Claude Code
-
-Load the repository as a local plugin through `.claude-plugin/plugin.json`, or
-point Claude's Agent Skills configuration at the `skills/` directory.
-
-### Codex
-
-Load the repository through `.codex-plugin/plugin.json`, or point Codex's Agent
-Skills configuration at the `skills/` directory.
 
 All hosts share the same skill content. The runtime adapter maps canonical pstack
 roles to the capabilities actually exposed by the host. Missing integrations are
@@ -92,7 +116,7 @@ the upstream lock, and forbidden vendor-specific runtime bindings.
 
 ## Host contract
 
-Read `skills/pstack-omp/references/runtime.md` before adapting a workflow to a new
+Read `skills/pstack-pi/references/runtime.md` before adapting a workflow to a new
 agent host. It defines canonical roles, capability mapping, configuration paths,
 transcript handling, interaction fallbacks, and verification ownership.
 

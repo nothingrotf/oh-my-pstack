@@ -5,7 +5,7 @@ description: Configure which host-supported roles or models pstack uses per work
 
 # Setup pstack
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) throughout this setup.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) throughout this setup.
 
 Write the optional pstack configuration at `$PSTACK_CONFIG` when that variable is set; otherwise use `.pstack/config.md` in the current project. This is an override layer, not a requirement. Never write to a vendor-specific home directory.
 

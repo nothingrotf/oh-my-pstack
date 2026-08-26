@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # No comments
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for reviewer-role selection and child briefs.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for reviewer-role selection and child briefs.
 
 Spawn Comment Sicko. Act on accepted findings.
 

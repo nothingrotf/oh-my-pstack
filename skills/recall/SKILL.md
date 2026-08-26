@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Recall
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for transcript discovery, workspace boundaries, explorer roles, models, and host fallbacks.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for transcript discovery, workspace boundaries, explorer roles, models, and host fallbacks.
 
 **Before you start or resume work, you rebuild the user's recent working context and hand back a tight capsule of where things stand now and what to do next.** Use for "recall my work on X", "catch me up", "what have I been working on", or "where did I leave off".
 

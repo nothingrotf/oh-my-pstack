@@ -16,6 +16,7 @@ const requiredSkills = new Set([
   "maintain-verification-skill",
   "no-comments",
   "poteto-mode",
+  "pstack-pi",
   "recall",
   "reflect",
   "setup-pstack",
@@ -121,14 +122,34 @@ try {
   const packageManifest = JSON.parse(
     await readFile(join(root, "package.json"), "utf8")
   );
+  const requiredKeywords = [
+    "pi-package",
+    "pstack",
+    "agent-skills",
+    "coding-agent",
+    "claude-code",
+    "codex",
+  ];
+  if (packageManifest.name !== "pstack-pi") {
+    failures.push("package.json does not use the pstack-pi package name");
+  }
   if (!packageManifest.pi?.skills?.includes("./skills")) {
     failures.push("package.json does not expose ./skills through the pi manifest");
+  }
+  if (requiredKeywords.some((keyword) => !packageManifest.keywords?.includes(keyword))) {
+    failures.push("package.json is missing discoverability keywords");
+  }
+  const claudeManifest = JSON.parse(
+    await readFile(join(root, ".claude-plugin", "plugin.json"), "utf8")
+  );
+  if (claudeManifest.name !== "pstack-pi") {
+    failures.push(".claude-plugin/plugin.json does not use the pstack-pi name");
   }
   const codexManifest = JSON.parse(
     await readFile(join(root, ".codex-plugin", "plugin.json"), "utf8")
   );
-  if (codexManifest.skills !== "./skills/") {
-    failures.push(".codex-plugin/plugin.json does not expose ./skills/");
+  if (codexManifest.name !== "pstack-pi" || codexManifest.skills !== "./skills/") {
+    failures.push(".codex-plugin/plugin.json has incorrect package identity or skills path");
   }
   const upstreamLock = JSON.parse(
     await readFile(join(root, "upstream.lock.json"), "utf8")

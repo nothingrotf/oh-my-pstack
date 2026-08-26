@@ -5,7 +5,7 @@ description: "Use for 'why does X work this way', 'why we picked Y', design rati
 
 # Why
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for tool discovery, researcher and synthesizer roles, model choices, concurrency, and unavailable-capability reporting.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for tool discovery, researcher and synthesizer roles, model choices, concurrency, and unavailable-capability reporting.
 
 Investigate the motivation and intent behind code. Why was it built this way? What edge cases were considered? What product, business, or operational constraints shaped the design? What alternatives were rejected, and why?
 

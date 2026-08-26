@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Reflect
 
-Follow the [portable runtime contract](../pstack-omp/references/runtime.md) for transcript discovery, child roles, model choices, tool access, questions, and skill authoring.
+Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for transcript discovery, child roles, model choices, tool access, questions, and skill authoring.
 
 Mine the current conversation for durable learnings, then route them into skill edits.
 
