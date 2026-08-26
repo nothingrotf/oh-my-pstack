@@ -74,6 +74,32 @@ roles to the capabilities actually exposed by the host. Missing integrations are
 reported honestly and fail closed; for example, Benny requires an available
 Slack/tracker/control adapter rather than pretending those tools exist.
 
+## First-time setup
+
+After installing, start a fresh agent session in the project you want to work on.
+Run the setup skill once:
+
+```text
+$setup-pstack
+```
+
+It detects the roles and models your host actually exposes, lets you choose the
+defaults for implementation and review work, and writes portable project-local
+configuration to `.pstack/config.md` (or to `$PSTACK_CONFIG` when set). It does
+not create models, permissions, integrations, or child-agent capabilities that
+your host does not provide.
+
+Then route your first real task through the main workflow:
+
+```text
+$poteto-mode add a small feature and prove it works end to end
+```
+
+The setup skill may offer to create a project verification skill when the project
+has no existing way to exercise the real application. Accept that offer when you
+want repeatable behavioral proof; otherwise setup finishes without changing the
+project. Read `skills/setup-pstack/SKILL.md` for the complete setup contract.
+
 ## Automatic upstream updates
 
 `.github/workflows/upstream-sync.yml` checks the original pstack `main` branch
