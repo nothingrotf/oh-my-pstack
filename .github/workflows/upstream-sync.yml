@@ -1,0 +1,58 @@
+name: Sync upstream pstack
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-pstack-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out package
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply safe upstream update
+        run: node scripts/sync-upstream.mjs --apply
+
+      - name: Verify package
+        run: npm run verify
+
+      - name: Test updater
+        run: npm run test:sync
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Test bundled scripts
+        run: |
+          bun install --cwd skills/poteto-mode/scripts --frozen-lockfile
+          bun test orch watch-pr
+          bunx tsc --project skills/poteto-mode/scripts/watch-pr/tsconfig.json --noEmit --strict
+
+      - name: Open update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: sync upstream pstack"
+          title: "chore: sync upstream pstack"
+          body: |
+            Automated update from the pinned authoritative Cursor pstack source.
+
+            The updater preserves OMP-owned adapters and fails before writing when
+            upstream changes a protected portability adaptation.
+          branch: automation/upstream-pstack
+          delete-branch: true

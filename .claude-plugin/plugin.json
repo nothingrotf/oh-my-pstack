@@ -1,0 +1,9 @@
+{
+  "name": "pstack-omp",
+  "description": "Portable pstack workflow and principle skills for Claude Code and other Agent Skills hosts.",
+  "author": {
+    "name": "pstack contributors"
+  },
+  "version": "0.14.3-omp.1",
+  "license": "MIT"
+}

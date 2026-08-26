@@ -1,0 +1,54 @@
+{
+  "repository": "https://github.com/cursor/plugins.git",
+  "ref": "main",
+  "path": "pstack",
+  "commit": "bdf7aa355337897f167153e05069aca505dae17c",
+  "protectedPrefixes": [
+    "skills/poteto-mode/",
+    "skills/pstack-omp/",
+    "skills/orchestrate-omp/"
+  ],
+  "protectedPaths": [
+    "skills/architect/SKILL.md",
+    "skills/arena/SKILL.md",
+    "skills/automate-me/SKILL.md",
+    "skills/create-verification-skill/SKILL.md",
+    "skills/figure-it-out/SKILL.md",
+    "skills/how/SKILL.md",
+    "skills/how/references/explainer-prompt.md",
+    "skills/how/references/explorer-prompt.md",
+    "skills/interrogate/SKILL.md",
+    "skills/interrogate/references/rubric.md",
+    "skills/maintain-verification-skill/SKILL.md",
+    "skills/no-comments/SKILL.md",
+    "skills/recall/SKILL.md",
+    "skills/reflect/SKILL.md",
+    "skills/reflect/references/divergent-reviewer.md",
+    "skills/reflect/references/judgment-reviewer.md",
+    "skills/reflect/references/tooling-reviewer.md",
+    "skills/setup-pstack/SKILL.md",
+    "skills/show-me-your-work/SKILL.md",
+    "skills/swarm/SKILL.md",
+    "skills/teach/SKILL.md",
+    "skills/why/SKILL.md",
+    "skills/why/references/synthesizer-prompt.md",
+    "skills/principle-build-the-lever/SKILL.md",
+    "skills/principle-guard-the-context-window/SKILL.md",
+    "skills/reproduce-and-fix-issues/SKILL.md",
+    "skills/reproduce-and-fix-issues/references/control-adapter.md",
+    "skills/reproduce-and-fix-issues/references/feature-map.example.md",
+    "skills/setup-benny/SKILL.md",
+    "skills/triage-issue-reports/SKILL.md",
+    "skills/triage-issue-reports/references/routing.example.md"
+  ],
+  "sourceRoots": [
+    {
+      "source": "pstack/skills",
+      "destination": "skills"
+    },
+    {
+      "source": "pstack/automations/benny/skills",
+      "destination": "skills"
+    }
+  ]
+}

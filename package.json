@@ -1,0 +1,36 @@
+{
+  "name": "pstack-omp",
+  "version": "0.14.3-omp.1",
+  "description": "Portable pstack workflow and principle skills for OMP, Claude Code, Codex, and Agent Skills hosts.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "agent-skills",
+    "pstack",
+    "workflow",
+    "subagents"
+  ],
+  "license": "MIT",
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "files": [
+    "skills",
+    "agents",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    ".claude-plugin",
+    ".codex-plugin",
+    "upstream.lock.json"
+  ],
+  "scripts": {
+    "verify": "node scripts/verify.mjs",
+    "test:sync": "node --test scripts/sync-upstream.test.mjs",
+    "sync:check": "node scripts/sync-upstream.mjs --check",
+    "sync:apply": "node scripts/sync-upstream.mjs --apply"
+  }
+}
