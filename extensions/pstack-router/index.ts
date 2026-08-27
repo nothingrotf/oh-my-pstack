@@ -54,6 +54,7 @@ interface RouteLedgerLaunch {
   version: 1;
   kind: "launch";
   runId: string;
+  previousRunId?: string;
   sessionId: string;
   configPath: string;
   modelRole: PstackModelRole;
@@ -136,7 +137,7 @@ function rpcError(value: unknown): RpcReplyError {
 
 function rpcCall(
   pi: ExtensionAPI,
-  method: "ping" | "spawn",
+  method: "ping" | "spawn" | "resume",
   params: Record<string, unknown>,
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
@@ -264,7 +265,7 @@ async function prepareRoute(
 }
 
 function extractRunId(value: unknown): string {
-  if (!isRecord(value)) throw new Error("pi-subagents returned an invalid spawn reply.");
+  if (!isRecord(value)) throw new Error("pi-subagents returned an invalid route reply.");
   const details = isRecord(value.details) ? value.details : value;
   const runId = stringField(details, "runId") ?? stringField(details, "asyncId");
   if (!runId) throw new Error("pi-subagents did not return a run identifier.");
@@ -334,6 +335,7 @@ function parseLedgerChoice(value: unknown): RouteLedgerChoice | undefined {
 function parseLedgerLaunch(value: unknown, fallbackSessionId: string): RouteLedgerLaunch | undefined {
   if (!isRecord(value) || value.version !== 1 || value.kind !== "launch") return undefined;
   const runId = stringField(value, "runId");
+  const previousRunId = stringField(value, "previousRunId");
   const sessionId = stringField(value, "sessionId") ?? fallbackSessionId;
   const configPath = stringField(value, "configPath");
   const modelRole = stringField(value, "modelRole");
@@ -366,6 +368,7 @@ function parseLedgerLaunch(value: unknown, fallbackSessionId: string): RouteLedg
     version: 1,
     kind: "launch",
     runId,
+    ...(previousRunId ? { previousRunId } : {}),
     sessionId,
     configPath,
     modelRole,
@@ -474,6 +477,25 @@ function restoreLedger(active: Map<string, RouteLedgerLaunch>, ctx: ExtensionCon
   }
 }
 
+function appendFollowupLaunch(
+  pi: ExtensionAPI,
+  active: Map<string, RouteLedgerLaunch>,
+  source: RouteLedgerLaunch,
+  runId: string,
+  sessionId: string,
+): RouteLedgerLaunch {
+  const launch: RouteLedgerLaunch = {
+    ...source,
+    runId,
+    previousRunId: source.runId,
+    sessionId,
+    startedAt: new Date().toISOString(),
+  };
+  active.set(runId, launch);
+  pi.appendEntry(LEDGER_ENTRY, launch);
+  return launch;
+}
+
 function formatLaunchText(launch: RouteLedgerLaunch): string {
   const choices = launch.choices.map((choice) => {
     const model = choice.thinking ? `${choice.model}:${choice.thinking}` : choice.model;
@@ -499,6 +521,18 @@ function routeEntry(ctx: ExtensionContext, runId: string): Record<string, unknow
     const entry = entries[index];
     if (entry?.type !== "custom" || entry.customType !== LEDGER_ENTRY || !isRecord(entry.data)) continue;
     if (stringField(entry.data, "runId") === runId) return entry.data;
+  }
+  return undefined;
+}
+
+function routeLaunch(ctx: ExtensionContext, runId: string): RouteLedgerLaunch | undefined {
+  const sessionId = ctx.sessionManager.getSessionId();
+  const entries = ctx.sessionManager.getBranch();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.type !== "custom" || entry.customType !== LEDGER_ENTRY || !isRecord(entry.data)) continue;
+    if (entry.data.kind !== "launch" || stringField(entry.data, "runId") !== runId) continue;
+    return parseLedgerLaunch(entry.data, sessionId);
   }
   return undefined;
 }
@@ -545,8 +579,14 @@ function routeHistory(ctx: ExtensionContext): string[] {
 }
 
 function validateRpcCapabilities(value: unknown): void {
-  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.methods) || !value.methods.includes("spawn")) {
-    throw new PstackConfigError("The active pi-subagents RPC bridge does not support pstack spawn requests.");
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !Array.isArray(value.methods) ||
+    !value.methods.includes("spawn") ||
+    !value.methods.includes("resume")
+  ) {
+    throw new PstackConfigError("The active pi-subagents RPC bridge does not support pstack spawn and resume requests.");
   }
 }
 
@@ -666,6 +706,41 @@ export default function pstackRouter(pi: ExtensionAPI): void {
       ctx.ui.notify(history.length > 0 ? history.join("\n") : "No pstack route ledger entries exist in this session.", "info");
     },
   });
+
+  pi.registerTool(defineTool({
+    name: "pstack_followup",
+    label: "Pstack Follow-up",
+    description: "Continue one completed owner route through its retained pi-subagents session and preserve deterministic route evidence.",
+    parameters: Type.Object({
+      runId: Type.String({ minLength: 1, description: "The completed owner run identifier returned by pstack_launch or a previous pstack_followup." }),
+      task: Type.String({ minLength: 1, description: "The complete follow-up task for the retained owner." }),
+    }, { additionalProperties: false }),
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const status = routeEntry(ctx, params.runId);
+      if (!status || status.kind !== "completion") {
+        throw new PstackConfigError(`Pstack route '${params.runId}' does not have a terminal completion in the active session.`);
+      }
+      if (failureFields(status, "routingFailures").length > 0) {
+        throw new PstackConfigError(`Pstack route '${params.runId}' cannot continue after a routing failure.`);
+      }
+      const source = routeLaunch(ctx, params.runId);
+      if (!source) throw new PstackConfigError(`Pstack launch '${params.runId}' does not exist in the active session.`);
+      if (source.executionRole !== "owner" || source.choices.length !== 1) {
+        throw new PstackConfigError(`Pstack route '${params.runId}' is not a scalar owner route.`);
+      }
+      onUpdate?.({ content: [{ type: "text", text: `Continue owner route ${params.runId}.` }], details: {} });
+      const response = await rpcCall(pi, "resume", {
+        id: params.runId,
+        message: params.task,
+      }, signal);
+      const runId = extractRunId(response);
+      const launch = appendFollowupLaunch(pi, active, source, runId, ctx.sessionManager.getSessionId());
+      return {
+        content: [{ type: "text", text: `Continued pstack owner route ${params.runId} as ${runId}.\n${formatLaunchText(launch)}` }],
+        details: launch,
+      };
+    },
+  }));
 
   pi.registerTool(defineTool({
     name: "pstack_launch",

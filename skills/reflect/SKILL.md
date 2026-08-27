@@ -38,7 +38,7 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 ### 2. Spawn three reviewers in parallel
 
-Launch three reviewer children before awaiting results. Resolve one model role per lens. On Pi, call `pstack_launch` three times with execution role `reviewer`. Grant each child read access to the transcript and required tools. Forbid file writes in the brief.
+Launch three reviewer children before awaiting results. Resolve one model role per lens. On Pi, call `pstack_launch` three times with the listed execution roles. Verify that each execution profile already exposes transcript access and required tools. The router does not grant tools. Run an unsupported lens in the parent, or report the capability gap. Forbid file writes in the brief.
 
 | Lens | Model role | Execution role | Prompt template |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ### 3. Synthesize
 
-Launch one child with execution role `synthesizer`. On Pi, call `pstack_launch` with model role `reflect synthesizer`. Give the child the tools required to verify citations. Forbid repository writes. Use `references/synthesizer.md` verbatim with each reviewer output inserted where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+Launch one child with execution role `synthesizer`. On Pi, call `pstack_launch` with model role `reflect synthesizer`. Verify that the execution profile already exposes the citation tools. Run synthesis in the parent if it does not. Forbid repository writes. Use `references/synthesizer.md` verbatim with each reviewer output inserted where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { isProtectedPath, normalizeContent } from "./sync-upstream.mjs";
+import { forbiddenBindingsIn, forbiddenRuntimeBindings } from "./portability-bindings.mjs";
+import { isProtectedPath, normalizeContent, portabilityViolations } from "./sync-upstream.mjs";
 
 test("normalization removes the supported Cursor runtime bindings", () => {
   const source = [
@@ -20,6 +21,27 @@ test("normalization removes the supported Cursor runtime bindings", () => {
   assert.doesNotMatch(normalized, /~\/\.cursor\/|AskQuestion|claude-fable/u);
   assert.match(normalized, /\$PSTACK_CONFIG/u);
   assert.match(normalized, /host task runner/u);
+});
+
+test("normalization removes absolute Cursor skill and plugin roots without leaving home-relative paths", () => {
+  const normalized = normalizeContent([
+    "~/.cursor/skills/example/SKILL.md",
+    "~/.cursor/plugins/example/plugin.json",
+  ].join("\n"));
+
+  assert.equal(normalized, "skills/example/SKILL.md\nplugins/example/plugin.json");
+  assert.doesNotMatch(normalized, /~\/skills|~\/plugins/u);
+});
+
+test("the updater normalizes or blocks every forbidden runtime binding", () => {
+  const lock = { protectedPaths: [], protectedPrefixes: [] };
+  for (const binding of forbiddenRuntimeBindings) {
+    const normalized = normalizeContent(binding);
+    const remaining = forbiddenBindingsIn(normalized);
+    const violations = portabilityViolations(lock, new Map([["skills/example/SKILL.md", normalized]]));
+    assert.deepEqual(violations, remaining.map((token) => `skills/example/SKILL.md: ${token}`));
+    assert.equal(normalized !== binding || violations.length > 0, true, binding);
+  }
 });
 
 test("protected paths remain outside automatic upstream ownership", () => {
@@ -253,6 +275,100 @@ test("apply updates an upstream-owned file and advances the lock", async () => {
     assert.match(synced, /host task runner/u);
     const lock = JSON.parse(await readFile(join(target, "upstream.lock.json"), "utf8"));
     assert.notEqual(lock.commit, "0".repeat(40));
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("check rejects local drift from the pinned upstream revision", async () => {
+  const fixture = await mkdtemp(join(tmpdir(), "pstack-drift-check-test-"));
+  const source = join(fixture, "source");
+  const target = join(fixture, "target");
+  try {
+    const sourceSkill = join(source, "pstack/skills/blast-radius/SKILL.md");
+    const targetSkill = join(target, "skills/blast-radius/SKILL.md");
+    await mkdir(join(source, "pstack/skills/blast-radius"), { recursive: true });
+    await mkdir(join(target, "skills/blast-radius"), { recursive: true });
+    await writeFile(sourceSkill, "pinned content\n");
+    await writeFile(targetSkill, "corrupt content\n");
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: source });
+    execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
+    execFileSync("git", ["config", "user.name", "pstack test"], { cwd: source });
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "pinned"], { cwd: source });
+    const pinned = execFileSync("git", ["rev-parse", "HEAD"], { cwd: source, encoding: "utf8" }).trim();
+    await writeFile(
+      join(target, "upstream.lock.json"),
+      `${JSON.stringify({
+        repository: "local",
+        ref: "main",
+        path: "pstack",
+        commit: pinned,
+        protectedPrefixes: [],
+        protectedPaths: [],
+        sourceRoots: [{ source: "pstack/skills", destination: "skills" }],
+      })}\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "scripts/sync-upstream.mjs"), "--check", "--source", source],
+      { cwd: target, env: { ...process.env, PSTACK_SYNC_ROOT: target }, encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 11);
+    assert.match(result.stderr, /Managed files differ/u);
+    assert.match(result.stderr, /skills\/blast-radius\/SKILL\.md/u);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("apply quarantines a new skill with unsupported runtime bindings", async () => {
+  const fixture = await mkdtemp(join(tmpdir(), "pstack-quarantine-sync-test-"));
+  const source = join(fixture, "source");
+  const target = join(fixture, "target");
+  try {
+    const safeSkill = join(source, "pstack/skills/blast-radius/SKILL.md");
+    const blockedSkill = join(source, "pstack/skills/grokbot/SKILL.md");
+    await mkdir(join(source, "pstack/skills/blast-radius"), { recursive: true });
+    await mkdir(join(target, "skills/blast-radius"), { recursive: true });
+    await writeFile(safeSkill, "portable content\n");
+    await writeFile(join(target, "skills/blast-radius/SKILL.md"), "portable content\n");
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: source });
+    execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
+    execFileSync("git", ["config", "user.name", "pstack test"], { cwd: source });
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "baseline"], { cwd: source });
+    const baseline = execFileSync("git", ["rev-parse", "HEAD"], { cwd: source, encoding: "utf8" }).trim();
+    await mkdir(join(source, "pstack/skills/grokbot"), { recursive: true });
+    await writeFile(blockedSkill, "Call SendToUser with type secret-request.\n");
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "add cursor skill"], { cwd: source });
+    await writeFile(
+      join(target, "upstream.lock.json"),
+      `${JSON.stringify({
+        repository: "local",
+        ref: "main",
+        path: "pstack",
+        commit: baseline,
+        protectedPrefixes: [],
+        protectedPaths: [],
+        sourceRoots: [{ source: "pstack/skills", destination: "skills" }],
+      })}\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "scripts/sync-upstream.mjs"), "--apply", "--source", source],
+      { cwd: target, env: { ...process.env, PSTACK_SYNC_ROOT: target }, encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 3);
+    assert.match(result.stderr, /require a portable adapter/u);
+    await assert.rejects(readFile(join(target, "skills/grokbot/SKILL.md"), "utf8"), /ENOENT/u);
+    const lock = JSON.parse(await readFile(join(target, "upstream.lock.json"), "utf8"));
+    assert.equal(lock.commit, baseline);
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }

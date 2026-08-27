@@ -167,11 +167,13 @@ Do not mix writers, reviewers, or synthesizers in one child session. Do not let 
 
 1. Resolve the model role once.
 2. Call `pstack_launch` once with the `owner` execution role and complete brief.
-3. Record its run ID and reuse it for coupled follow-ups.
-4. Keep the owner inside its assigned branch and paths.
-5. Require a terminal report at each verification boundary.
-6. Verify each boundary before the next follow-up.
-7. Stop on ownership violation, stale generation, or model drift.
+3. Record its run ID.
+4. After each terminal report, call `pstack_followup` with that run ID and the complete follow-up brief.
+5. Replace the recorded run ID with the new run ID from `pstack_followup`.
+6. Keep the owner inside its assigned branch and paths.
+7. Require a terminal report at each verification boundary.
+8. Verify each boundary before the next follow-up.
+9. Stop on ownership violation, stale generation, or model drift.
 
 ### One-shot watcher
 

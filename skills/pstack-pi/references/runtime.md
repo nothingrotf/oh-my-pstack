@@ -73,7 +73,7 @@ For another host, use the exact model value accepted by its child facility.
 
 Resolve the exact model role named by the active workflow. Do not substitute an execution role name as the configuration key.
 
-On Pi, call `pstack_launch` for one child. Call `pstack_panel` for all configured entries in one panel role. Call `pstack_status` after the wait.
+On Pi, call `pstack_launch` for one child. Call `pstack_panel` for all configured entries in one panel role. Call `pstack_followup` to continue a completed owner. Call `pstack_status` after the wait.
 
 The deterministic router validates the complete configuration against the live model inventory. It maps the execution role to a Pi agent separately.
 
@@ -105,7 +105,7 @@ pi install npm:pi-subagents
 
 Restart Pi. Run `/subagents-doctor`, then run `/pstack-doctor`. Continue only when both checks pass.
 
-The pstack package registers `pstack_launch`, `pstack_panel`, and `pstack_status`. These tools use the structured `pi-subagents` RPC bridge. They do not scrape transcripts or invoke private APIs.
+The pstack package registers `pstack_launch`, `pstack_panel`, `pstack_followup`, and `pstack_status`. These tools use the structured `pi-subagents` RPC bridge. They do not scrape transcripts or invoke private APIs.
 
 Use `/pstack-routes` to inspect the latest route ledger entries in the current Pi session.
 

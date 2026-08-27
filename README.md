@@ -6,13 +6,13 @@ the Agent Skills layout.
 
 `oh-my-pstack` is a universal port of the original
 [Cursor pstack](https://github.com/cursor/plugins/tree/main/pstack). It keeps the
-upstream workflow catalog, playbooks, principles, references, and verification
-scripts while replacing Cursor-only runtime assumptions with a host-neutral
-adapter.
+portable catalog from its pinned upstream baseline, including playbooks,
+principles, references, and verification scripts. It replaces Cursor-only
+runtime assumptions with a host-neutral adapter.
 
 ## What is included
 
-- 44 upstream pstack skills and their supporting references.
+- 44 pstack skills and their supporting references from the pinned upstream baseline.
 - Benny's three fail-closed issue-triage/reproduction skills.
 - `poteto-mode` for routing work through the right playbook.
 - `pstack-pi` for translating roles, delegation, models, transcripts, questions,
@@ -21,7 +21,7 @@ adapter.
   `pi-subagents`.
 - Native package metadata for OMP/Pi, Claude Code, and Codex, plus OpenCode setup
   guidance.
-- Daily upstream synchronization that opens a verified pull request.
+- Daily upstream checks that open a verified pull request only when portability gates pass.
 
 The original Cursor repository is the content authority. The dsebban repository
 was used only as an early structural example; it is not an upstream source.
@@ -56,7 +56,7 @@ pi install npm:pi-subagents
 Restart Pi. Run `/subagents-doctor`, then run `/pstack-doctor`. The delegation
 extension provides the `subagent` tool and the built-in execution agents.
 
-The pstack package provides `pstack_launch`, `pstack_panel`, and `pstack_status`.
+The pstack package provides `pstack_launch`, `pstack_panel`, `pstack_followup`, and `pstack_status`.
 These tools read the model policy and pass explicit models to `pi-subagents`.
 The model role never changes the selected execution agent.
 
@@ -105,8 +105,9 @@ cp -R .pstack-source/skills/. .opencode/skills/
 ```
 
 OpenCode already provides primary and subagents. Configure their models through
-your normal `opencode.json` or `opencode.jsonc` settings, then ask `setup-pstack`
-to map pstack roles to the agents your OpenCode installation exposes.
+your normal `opencode.json` or `opencode.jsonc` settings. Use `setup-pstack` to
+write the separate pstack model-role policy. The skill does not change OpenCode
+agent mappings.
 
 ### Claude Code and Codex
 
@@ -141,13 +142,14 @@ use `provider/model-id:thinking` and live in `.pstack/config.md` or
 
 Native Pi does not include subagents. Install `pi-subagents`, restart Pi, and run
 both doctor commands before setup. Each pstack workflow calls `pstack_launch` or
-`pstack_panel`. The router performs these operations:
+`pstack_panel`. Owner workflows call `pstack_followup` after terminal reports.
+The router performs these operations:
 
 1. Read `$PSTACK_CONFIG` or `.pstack/config.md`.
 2. Resolve the pstack model role.
 3. Validate the model against the live Pi inventory.
 4. Map the execution role to a Pi agent.
-5. Launch through the structured `pi-subagents` RPC bridge.
+5. Launch or continue through the structured `pi-subagents` RPC bridge.
 6. Store the requested and observed route in the session ledger.
 7. Expose the validated result through `pstack_status`.
 

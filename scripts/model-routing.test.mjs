@@ -87,6 +87,7 @@ test("setup preserves every upstream pstack model role without writing host agen
   assert.deepEqual(configuredRoles, modelRoleLines);
   assert.match(setup, /\[fast\]/u);
   assert.match(setup, /\/pstack-doctor/u);
+  assert.match(setup, /`pstack_followup`/u);
   assert.match(setup, /`pstack_status`/u);
   assert.doesNotMatch(setup, /agentOverrides|\.pi\/settings\.json|opencode\.json/u);
 });
@@ -99,6 +100,7 @@ test("runtime keeps pstack model roles independent from execution roles", async 
     assert.match(source, /per-run `model`/u);
     assert.match(source, /`pstack_launch`/u);
     assert.match(source, /`pstack_panel`/u);
+    assert.match(source, /`pstack_followup`/u);
     assert.match(source, /`pstack_status`/u);
     assert.doesNotMatch(source, /subagents\.agentOverrides/u);
   }
@@ -120,6 +122,13 @@ test("every pstack model role uses the deterministic router in its owning workfl
     });
     assert.equal(scopedRoute, true, `${path} must route ${role} through ${routingTool} near the owning step`);
   }
+});
+
+test("swarm model races select configured model choices per arm", async () => {
+  const swarm = await load("skills/swarm/SKILL.md");
+  assert.match(swarm, /panel model role/u);
+  assert.match(swarm, /configured `modelNumber`/u);
+  assert.match(swarm, /too few distinct models/u);
 });
 
 test("upstream sync protects every adapted model-routing owner", async () => {

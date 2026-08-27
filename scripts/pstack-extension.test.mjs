@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import pstackRouter from "../extensions/pstack-router/index.ts";
 
-function createHost(runId = "pstack-run-1", spawnError) {
+function createHost(runId = "pstack-run-1", spawnError, followupRunId = `${runId}-followup`) {
   const eventHandlers = new Map();
   const extensionHandlers = new Map();
   const tools = new Map();
@@ -64,7 +64,9 @@ function createHost(runId = "pstack-run-1", spawnError) {
       version: 1,
       requestId: request.requestId,
       success: true,
-      data: request.method === "ping" ? { version: 1, methods: ["ping", "spawn"] } : { details: { runId } },
+      data: request.method === "ping"
+        ? { version: 1, methods: ["ping", "spawn", "resume"] }
+        : { details: { runId: request.method === "resume" ? followupRunId : runId } },
     });
   });
 
@@ -115,8 +117,12 @@ async function projectWithConfig(source) {
   return cwd;
 }
 
+function rpcRequest(requests, method) {
+  return requests.find((entry) => entry.channel === "subagents:rpc:v1:request" && entry.data.method === method)?.data;
+}
+
 function spawnRequest(requests) {
-  return requests.find((entry) => entry.channel === "subagents:rpc:v1:request" && entry.data.method === "spawn")?.data;
+  return rpcRequest(requests, "spawn");
 }
 
 test("pstack_launch resolves model, thinking, fast, agent, and route ledger", async (testContext) => {
@@ -143,6 +149,51 @@ test("pstack_launch resolves model, thinking, fast, agent, and route ledger", as
   assert.equal(host.entries[0].customType, "pstack-route");
   assert.equal(host.entries[0].data.choices[0].thinking, "xhigh");
   assert.equal(host.entries[0].data.worktree, true);
+});
+
+test("pstack_followup continues a completed scalar owner with the same route", async (testContext) => {
+  const cwd = await projectWithConfig("feature: openai-codex/gpt-5.6-sol:high\n");
+  testContext.after(() => rm(cwd, { recursive: true, force: true }));
+  const host = createHost("owner-1", undefined, "owner-2");
+  const ownerContext = context(cwd, ["openai-codex/gpt-5.6-sol"]);
+  await host.tools.get("pstack_launch").execute("owner-start", {
+    modelRole: "feature",
+    executionRole: "owner",
+    task: "Build the feature.",
+    worktree: true,
+  }, new AbortController().signal, undefined, ownerContext);
+
+  host.pi.events.emit("subagent:async-complete", {
+    runId: "owner-1",
+    success: true,
+    state: "completed",
+    results: [{
+      agent: "delegate",
+      model: "openai-codex/gpt-5.6-sol:high",
+      thinking: "high",
+      status: "completed",
+    }],
+  });
+
+  const branch = host.entries.map((entry) => ({
+    type: "custom",
+    customType: entry.customType,
+    data: entry.data,
+  }));
+  const result = await host.tools.get("pstack_followup").execute("owner-followup", {
+    runId: "owner-1",
+    task: "Apply the accepted review findings.",
+  }, new AbortController().signal, undefined, context(cwd, ["openai-codex/gpt-5.6-sol"], "session-a", branch));
+
+  const request = rpcRequest(host.requests, "resume");
+  assert.equal(request.params.id, "owner-1");
+  assert.equal(request.params.message, "Apply the accepted review findings.");
+  assert.equal(result.details.runId, "owner-2");
+  assert.equal(result.details.previousRunId, "owner-1");
+  assert.equal(result.details.modelRole, "feature");
+  assert.equal(result.details.executionRole, "owner");
+  assert.equal(result.details.worktree, true);
+  assert.equal(result.details.choices[0].model, "openai-codex/gpt-5.6-sol");
 });
 
 test("pstack_panel launches all configured models through one workflow", async (testContext) => {

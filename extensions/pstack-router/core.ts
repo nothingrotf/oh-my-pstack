@@ -47,6 +47,7 @@ const PANEL_MODEL_ROLES = stringTuple(
   "how critics",
   "arena runners",
   "arena cross-judge pool",
+  "swarm workers",
   "architect runners",
   "interrogate reviewers",
 );

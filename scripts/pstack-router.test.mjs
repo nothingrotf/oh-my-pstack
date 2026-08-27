@@ -28,7 +28,7 @@ reflect tooling: openai-codex/gpt-5.6-sol:xhigh
 reflect judgment, divergent, synthesizer: anthropic/claude-fable-5:medium
 arena runners: openai-codex/gpt-5.6-sol:medium, openai-codex/gpt-5.6-luna:xhigh, anthropic/claude-fable-5:medium, anthropic/claude-opus-5:xhigh
 arena cross-judge pool: openai-codex/gpt-5.6-sol:medium, openai-codex/gpt-5.6-luna:xhigh, anthropic/claude-fable-5:medium, anthropic/claude-opus-5:xhigh
-swarm workers: openai-codex/gpt-5.6-luna:xhigh
+swarm workers: openai-codex/gpt-5.6-luna:xhigh, anthropic/claude-fable-5:medium
 architect runners: openai-codex/gpt-5.6-sol:medium, openai-codex/gpt-5.6-luna:xhigh, anthropic/claude-fable-5:medium, anthropic/claude-opus-5:xhigh
 interrogate reviewers: openai-codex/gpt-5.6-sol:medium, openai-codex/gpt-5.6-luna:xhigh, anthropic/claude-fable-5:medium, anthropic/claude-opus-5:xhigh
 `;
@@ -47,6 +47,7 @@ test("parses every canonical model role and expands shared labels", () => {
   assert.equal(resolveModelRole(parsed, "refactoring")[0]?.thinking, "medium");
   assert.equal(resolveModelRole(parsed, "reflect divergent")[0]?.model, "anthropic/claude-fable-5");
   assert.equal(resolveModelRole(parsed, "reflect synthesizer")[0]?.thinking, "medium");
+  assert.equal(resolveModelRole(parsed, "swarm workers").length, 2);
 });
 
 test("keeps fast separate from the model and thinking", () => {

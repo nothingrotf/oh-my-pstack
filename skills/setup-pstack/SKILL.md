@@ -18,7 +18,7 @@ Detect both capabilities:
 1. Enumerate the models available to the current host.
 2. Select a model for each child launch.
 
-For Pi, use `pi --list-models` for the model inventory. Require `pstack_launch`, `pstack_panel`, `pstack_status`, and the `subagent` tool. Recommend `pi install npm:pi-subagents` when the `subagent` tool is absent. Tell the user to restart Pi. Tell the user to run `/subagents-doctor` and `/pstack-doctor` after installation.
+For Pi, use `pi --list-models` for the model inventory. Require `pstack_launch`, `pstack_panel`, `pstack_followup`, `pstack_status`, and the `subagent` tool. Recommend `pi install npm:pi-subagents` when the `subagent` tool is absent. Tell the user to restart Pi. Tell the user to run `/subagents-doctor` and `/pstack-doctor` after installation.
 
 Use the live host inventory. Do not copy model identifiers from examples. Do not write configuration when the host cannot select a model for each child.
 
@@ -49,7 +49,7 @@ Show every line from the configuration shape below. Mark a concrete model that i
 
 Ask the user to accept the current values or change specific lines. Offer only detected models, `inherit-parent`, and `auto`.
 
-For panel roles, list length controls fan-out:
+For panel roles, including `swarm workers`, list length controls fan-out:
 
 - `how critics`
 - `arena runners`
@@ -57,7 +57,7 @@ For panel roles, list length controls fan-out:
 - `architect runners`
 - `interrogate reviewers`
 
-`swarm workers` supplies the default model for each swarm worker. A model race can select a different model for each arm.
+`swarm workers` accepts one or more models. Use `modelNumber` on each `pstack_launch` to select a race arm.
 
 ## 4. Validate the choices
 
@@ -91,7 +91,7 @@ reflect tooling: <instruction-model>
 reflect judgment, divergent, synthesizer: <judgment-model>
 arena runners: <judgment-model>, <instruction-model>, <explorer-model>, <strongest-model>
 arena cross-judge pool: <judgment-model>, <instruction-model>, <explorer-model>, <strongest-model>
-swarm workers: <code-model>
+swarm workers: <code-model>[, <alternate-model>...]
 architect runners: <judgment-model>, <instruction-model>, <explorer-model>, <strongest-model>
 interrogate reviewers: <judgment-model>, <instruction-model>, <explorer-model>, <strongest-model>
 ```
