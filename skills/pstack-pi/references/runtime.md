@@ -33,20 +33,19 @@ Never convert pstack model roles into a small set of host agent model defaults. 
 | `owner` | One coupled implementation session retained through its lifecycle. |
 | `mechanical` | Fully specified low-judgment edits. |
 
-Map execution roles to live host agents. Agent selection does not select a model.
+Map execution roles to host capability profiles. Profile selection does not select a model.
 
-For Pi with `pi-subagents`, use this default behavior map when those agents exist:
+For Pi with `pi-subagents`, use these private profiles:
 
-| Execution role | Pi agent |
-| --- | --- |
-| `explorer`, `watcher` | `scout` |
-| `planner`, `designer`, `synthesizer` | `oracle` |
-| `reviewer` | `reviewer` |
-| `researcher` | `researcher` |
-| `implementer`, `mechanical` | `worker` |
-| `owner` | `delegate` |
+| Execution roles | Private profile | Required capabilities |
+| --- | --- | --- |
+| `explorer`, `watcher`, `planner`, `designer`, `reviewer`, `synthesizer` | `pstack-runtime-read` | Read-only files and shell verification. |
+| `researcher` | `pstack-runtime-evidence` | Files, shell history, MCP evidence, and web sources. |
+| `implementer`, `owner`, `mechanical` | `poteto-agent` | Bounded file changes and verification. |
 
-Other hosts use their live agent names. The live inventory wins.
+The profiles declare strict tool lists. `pi-subagents` verifies every declared tool before the first model turn.
+
+Other hosts use their live capability profiles. The live inventory wins.
 
 Every child brief must stand alone. It must name the goal, execution role, writable scope, acceptance criteria, verification command, forbidden scope, and report format.
 
@@ -75,7 +74,9 @@ Resolve the exact model role named by the active workflow. Do not substitute an 
 
 On Pi, call `pstack_launch` for one child. Call `pstack_panel` for all configured entries in one panel role. Call `pstack_followup` to continue a completed owner. Call `pstack_status` after the wait.
 
-The deterministic router validates the complete configuration against the live model inventory. It maps the execution role to a Pi agent separately.
+The deterministic router validates the complete configuration against the live model inventory. It maps the execution role to a private profile separately.
+
+The router injects the workflow name and model-role prompt into every child brief. The visible run label uses the exact model role.
 
 The router passes `provider/model-id:thinking` through the per-run `model` field. It passes `[fast]` through the separate `fast: true` field. A provider account can reject priority service. Treat that response as a child failure.
 
@@ -83,7 +84,7 @@ The router resolves `inherit-parent` and `auto` to the concrete parent model and
 
 If a model role is absent, stop the Pi dispatch. If a concrete model is unavailable, stop the Pi dispatch. Do not use an agent default.
 
-For a panel, the router launches one child per configured entry. `pstack_panel` uses one shared execution role and one Pi agent.
+For a panel, the router launches one child per configured entry. Each child label contains the model role and its panel position.
 
 The router records requested route data in a custom session entry. It records observed child data after the asynchronous run completes.
 

@@ -105,6 +105,108 @@ export interface PanelWorkflowInput {
   tasks: readonly string[];
 }
 
+export interface ScalarWorkflowInput extends RoutedTaskInput {
+  worktree: boolean;
+}
+
+export interface FollowupWorkflowInput {
+  modelRole: PstackModelRole;
+  childRunId: string;
+  task: string;
+}
+
+interface ModelRolePrompt {
+  workflow: string;
+  instruction: string;
+}
+
+const MODEL_ROLE_PROMPTS = {
+  "feature": {
+    workflow: "poteto-mode",
+    instruction: "Implement one settled feature from reproduced user behavior through end-to-end verification.",
+  },
+  "refactoring": {
+    workflow: "poteto-mode",
+    instruction: "Improve the internal design without changing observable behavior. Prove behavior before and after the change.",
+  },
+  "bug-fix": {
+    workflow: "poteto-mode",
+    instruction: "Reproduce the defect through the user surface. Find the root cause, apply the smallest complete fix, and verify the regression.",
+  },
+  "perf-issue": {
+    workflow: "poteto-mode",
+    instruction: "Measure the reported slow path, isolate the limiting cause, improve it, and compare the same benchmark.",
+  },
+  "hillclimb": {
+    workflow: "poteto-mode",
+    instruction: "Apply one measured improvement at a time. Keep only changes that improve the frozen objective without regressions.",
+  },
+  "judgment and prose": {
+    workflow: "poteto-mode",
+    instruction: "Make one evidence-based judgment or produce concise final prose without inventing facts.",
+  },
+  "hardest tasks": {
+    workflow: "poteto-mode",
+    instruction: "Own the hardest ambiguous unit. Resolve uncertainty from evidence before implementation or recommendation.",
+  },
+  "how explorer": {
+    workflow: "how",
+    instruction: "Trace the requested subsystem from entry point to effect. Return exact source evidence and the smallest useful mental model.",
+  },
+  "how explainer": {
+    workflow: "how",
+    instruction: "Explain the verified runtime flow, ownership boundaries, and extension points from the supplied evidence.",
+  },
+  "how critics": {
+    workflow: "how",
+    instruction: "Critique the frozen explanation independently. Report concrete omissions, contradictions, and unsupported claims.",
+  },
+  "why investigators": {
+    workflow: "why",
+    instruction: "Investigate one assigned evidence category. Separate direct evidence, inference, contradictions, and missing records.",
+  },
+  "why synthesizer": {
+    workflow: "why",
+    instruction: "Synthesize frozen investigation reports into one cited rationale. Preserve disagreement and uncertainty.",
+  },
+  "reflect tooling": {
+    workflow: "reflect",
+    instruction: "Audit the completed work for tool use, verification quality, avoidable failures, and reusable process improvements.",
+  },
+  "reflect judgment": {
+    workflow: "reflect",
+    instruction: "Audit decisions against available evidence. Identify unjustified confidence, drift, and missed alternatives.",
+  },
+  "reflect divergent": {
+    workflow: "reflect",
+    instruction: "Develop independent alternative interpretations of the completed work and test them against the evidence.",
+  },
+  "reflect synthesizer": {
+    workflow: "reflect",
+    instruction: "Combine frozen reflection reports into prioritized lessons with concrete evidence and bounded follow-up actions.",
+  },
+  "arena runners": {
+    workflow: "arena",
+    instruction: "Produce one independent candidate for the frozen problem. Follow the shared constraints and do not inspect other candidates.",
+  },
+  "arena cross-judge pool": {
+    workflow: "arena",
+    instruction: "Judge frozen candidates against the shared rubric. Cite concrete evidence and do not repair a candidate during judgment.",
+  },
+  "swarm workers": {
+    workflow: "swarm",
+    instruction: "Execute one disjoint assigned unit. Respect ownership boundaries and return a merge-ready artifact or precise blocker.",
+  },
+  "architect runners": {
+    workflow: "architect",
+    instruction: "Propose one independent architecture from current source and frozen constraints. Name ownership, interfaces, sequence, and tradeoffs.",
+  },
+  "interrogate reviewers": {
+    workflow: "interrogate",
+    instruction: "Review the frozen artifact adversarially against the supplied contract. Report only evidence-backed current findings.",
+  },
+} satisfies Record<PstackModelRole, ModelRolePrompt>;
+
 const THINKING_LEVEL_SET: ReadonlySet<string> = new Set(THINKING_LEVELS);
 const EXECUTION_ROLE_SET: ReadonlySet<string> = new Set(EXECUTION_ROLES);
 const MODEL_ROLE_SET: ReadonlySet<string> = new Set(MODEL_ROLES);
@@ -270,20 +372,17 @@ export function executionAgentFor(role: ExecutionRole): string {
   switch (role) {
     case "explorer":
     case "watcher":
-      return "scout";
     case "planner":
     case "designer":
-    case "synthesizer":
-      return "oracle";
     case "reviewer":
-      return "reviewer";
+    case "synthesizer":
+      return "pstack-runtime-read";
     case "researcher":
-      return "researcher";
+      return "pstack-runtime-evidence";
     case "implementer":
-    case "mechanical":
-      return "worker";
     case "owner":
-      return "delegate";
+    case "mechanical":
+      return "poteto-agent";
   }
 }
 
@@ -302,18 +401,29 @@ export function formatMaterializedModel(choice: MaterializedModelChoice): string
   return choice.thinking ? `${choice.model}:${choice.thinking}` : choice.model;
 }
 
+function modelRolePrompt(role: PstackModelRole): ModelRolePrompt {
+  return MODEL_ROLE_PROMPTS[role];
+}
+
+function runKey(role: PstackModelRole, number?: number): string {
+  const base = role.replaceAll(" ", "-");
+  return number === undefined ? base : `${base}-${number}`;
+}
+
 export function buildRoutedTask(input: RoutedTaskInput): string {
+  const prompt = modelRolePrompt(input.modelRole);
   return [
-    "PSTACK ROUTE",
-    "",
-    "MODEL ROLE",
+    "PSTACK WORKFLOW IDENTITY",
     input.modelRole,
+    "",
+    "WORKFLOW",
+    prompt.workflow,
+    "",
+    "ROLE PROMPT",
+    prompt.instruction,
     "",
     "EXECUTION ROLE",
     input.executionRole,
-    "",
-    "PI AGENT",
-    input.agent,
     "",
     "RESOLVED MODEL",
     formatMaterializedModel(input),
@@ -329,16 +439,38 @@ export function buildRoutedTask(input: RoutedTaskInput): string {
   ].join("\n");
 }
 
+export function buildScalarWorkflowScript(input: ScalarWorkflowInput): string {
+  const child = {
+    agent: input.agent,
+    model: formatMaterializedModel(input),
+    ...(input.fast ? { fast: true } : {}),
+    ...(input.worktree ? { worktree: true } : {}),
+    label: input.modelRole,
+    task: buildRoutedTask(input),
+  };
+  return `return runs.run(${JSON.stringify(runKey(input.modelRole))}, ${JSON.stringify(child)});`;
+}
+
+export function buildFollowupWorkflowScript(input: FollowupWorkflowInput): string {
+  const child = {
+    resume: input.childRunId,
+    task: input.task.trim(),
+    label: input.modelRole,
+  };
+  return `return runs.run(${JSON.stringify(runKey(input.modelRole))}, ${JSON.stringify(child)});`;
+}
+
 export function buildPanelWorkflowScript(input: PanelWorkflowInput): string {
   if (input.models.length === 0) throw new PstackConfigError(`model role '${input.modelRole}' has no choices`);
   if (input.tasks.length !== input.models.length) {
     throw new PstackConfigError(`model role '${input.modelRole}' requires ${input.models.length} panel tasks; received ${input.tasks.length}`);
   }
   const children = input.models.map((model, index) => ({
-    key: `pstack-${index + 1}`,
+    key: runKey(input.modelRole, index + 1),
     agent: input.agent,
     model: formatMaterializedModel(model),
     ...(model.fast ? { fast: true } : {}),
+    label: `${input.modelRole} ${index + 1}/${input.models.length}`,
     task: buildRoutedTask({
       modelRole: input.modelRole,
       executionRole: input.executionRole,

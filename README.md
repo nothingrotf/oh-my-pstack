@@ -58,7 +58,7 @@ extension provides the `subagent` tool and the built-in execution agents.
 
 The pstack package provides `pstack_launch`, `pstack_panel`, `pstack_followup`, and `pstack_status`.
 These tools read the model policy and pass explicit models to `pi-subagents`.
-The model role never changes the selected execution agent.
+The model role remains the public run identity. The private runtime profile supplies the required tool set.
 
 ### OMP
 
@@ -146,12 +146,15 @@ both doctor commands before setup. Each pstack workflow calls `pstack_launch` or
 The router performs these operations:
 
 1. Read `$PSTACK_CONFIG` or `.pstack/config.md`.
-2. Resolve the pstack model role.
+2. Resolve the exact pstack model role.
 3. Validate the model against the live Pi inventory.
-4. Map the execution role to a Pi agent.
-5. Launch or continue through the structured `pi-subagents` RPC bridge.
-6. Store the requested and observed route in the session ledger.
-7. Expose the validated result through `pstack_status`.
+4. Inject the workflow name and role prompt into the child brief.
+5. Select a private runtime profile for the execution role.
+6. Let `pi-subagents` verify the strict tool list before the first model turn.
+7. Label each visible run with the pstack model role.
+8. Launch or continue through the structured `pi-subagents` RPC bridge.
+9. Store the requested and observed route in the session ledger.
+10. Expose the validated result through `pstack_status`.
 
 Treat the direct `pi-subagents` completion as provisional. After the wait, call
 `pstack_status`. Accept the result only when success is true and both failure

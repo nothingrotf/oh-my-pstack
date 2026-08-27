@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MODEL_ROLES,
   PstackConfigError,
+  buildFollowupWorkflowScript,
   buildPanelWorkflowScript,
   buildRoutedTask,
+  buildScalarWorkflowScript,
   executionAgentFor,
   materializeModelChoices,
   missingModelRoles,
@@ -126,16 +129,16 @@ test("maps every execution role without selecting models", () => {
     owner: executionAgentFor("owner"),
     mechanical: executionAgentFor("mechanical"),
   }, {
-    explorer: "scout",
-    watcher: "scout",
-    planner: "oracle",
-    designer: "oracle",
-    reviewer: "reviewer",
-    researcher: "researcher",
-    synthesizer: "oracle",
-    implementer: "worker",
-    owner: "delegate",
-    mechanical: "worker",
+    explorer: "pstack-runtime-read",
+    watcher: "pstack-runtime-read",
+    planner: "pstack-runtime-read",
+    designer: "pstack-runtime-read",
+    reviewer: "pstack-runtime-read",
+    researcher: "pstack-runtime-evidence",
+    synthesizer: "pstack-runtime-read",
+    implementer: "poteto-agent",
+    owner: "poteto-agent",
+    mechanical: "poteto-agent",
   });
 });
 
@@ -143,16 +146,63 @@ test("adds an auditable route header to every child task", () => {
   const task = buildRoutedTask({
     modelRole: "bug-fix",
     executionRole: "implementer",
-    agent: "worker",
+    agent: "poteto-agent",
     model: "openai-codex/gpt-5.6-sol",
     thinking: "high",
     fast: false,
     task: "Fix the reproduced defect.",
   });
-  assert.match(task, /MODEL ROLE\nbug-fix/u);
+  assert.match(task, /PSTACK WORKFLOW IDENTITY\nbug-fix/u);
+  assert.match(task, /WORKFLOW\npoteto-mode/u);
+  assert.match(task, /ROLE PROMPT\nReproduce the defect through the user surface\./u);
   assert.match(task, /EXECUTION ROLE\nimplementer/u);
-  assert.match(task, /PI AGENT\nworker/u);
+  assert.doesNotMatch(task, /PI AGENT|worker/u);
   assert.match(task, /RESOLVED MODEL\nopenai-codex\/gpt-5\.6-sol:high/u);
+});
+
+test("injects a workflow and role prompt for every setup model role", () => {
+  for (const modelRole of MODEL_ROLES) {
+    const task = buildRoutedTask({
+      modelRole,
+      executionRole: "reviewer",
+      agent: "pstack-runtime-read",
+      model: "openai-codex/gpt-5.6-sol",
+      fast: false,
+      task: "Execute the bounded brief.",
+    });
+    assert.match(task, new RegExp(`PSTACK WORKFLOW IDENTITY\\n${modelRole.replaceAll(" ", "\\s")}\\n`, "u"));
+    assert.match(task, /WORKFLOW\n[^\n]+\n\nROLE PROMPT\n[^\n]+/u);
+    assert.doesNotMatch(task, /PI AGENT|pstack-runtime-read/u);
+  }
+});
+
+test("builds a labeled scalar workflow that keeps the runtime agent internal", () => {
+  const script = buildScalarWorkflowScript({
+    modelRole: "how explorer",
+    executionRole: "explorer",
+    agent: "pstack-runtime-read",
+    model: "openai-codex/gpt-5.6-luna",
+    thinking: "xhigh",
+    fast: true,
+    task: "Trace the request flow.",
+    worktree: false,
+  });
+  assert.doesNotThrow(() => new Function("runs", script));
+  assert.match(script, /runs\.run\("how-explorer"/u);
+  assert.match(script, /"label":"how explorer"/u);
+  assert.match(script, /"agent":"pstack-runtime-read"/u);
+});
+
+test("builds a labeled owner follow-up with the retained child", () => {
+  const script = buildFollowupWorkflowScript({
+    modelRole: "hardest tasks",
+    childRunId: "owner-child-1",
+    task: "Apply the accepted review findings.",
+  });
+  assert.doesNotThrow(() => new Function("runs", script));
+  assert.match(script, /runs\.run\("hardest-tasks"/u);
+  assert.match(script, /"resume":"owner-child-1"/u);
+  assert.match(script, /"label":"hardest tasks"/u);
 });
 
 test("builds a valid panel script with per-child models and fast flags", () => {
@@ -161,7 +211,7 @@ test("builds a valid panel script with per-child models and fast flags", () => {
   const script = buildPanelWorkflowScript({
     modelRole: "how critics",
     executionRole: "reviewer",
-    agent: "reviewer",
+    agent: "pstack-runtime-read",
     models,
     tasks: models.map((_, index) => `Review angle ${index + 1}.`),
   });
@@ -169,4 +219,6 @@ test("builds a valid panel script with per-child models and fast flags", () => {
   assert.match(script, /openai-codex\/gpt-5\.6-luna:xhigh/u);
   assert.match(script, /"fast":true/u);
   assert.match(script, /anthropic\/claude-opus-5:xhigh/u);
+  assert.match(script, /"key":"how-critics-1"/u);
+  assert.match(script, /"label":"how critics 1\/4"/u);
 });

@@ -66,7 +66,7 @@ function createHost(runId = "pstack-run-1", spawnError, followupRunId = `${runId
       success: true,
       data: request.method === "ping"
         ? { version: 1, methods: ["ping", "spawn", "resume"] }
-        : { details: { runId: request.method === "resume" ? followupRunId : runId } },
+        : { details: { runId: request.method === "resume" || request.params.workflowScript?.includes('"resume"') ? followupRunId : runId } },
     });
   });
 
@@ -138,14 +138,19 @@ test("pstack_launch resolves model, thinking, fast, agent, and route ledger", as
   }, new AbortController().signal, undefined, context(cwd, ["openai-codex/gpt-5.6-luna"]));
 
   const request = spawnRequest(host.requests);
-  assert.equal(request.params.agent, "scout");
-  assert.equal(request.params.model, "openai-codex/gpt-5.6-luna:xhigh");
-  assert.equal(request.params.fast, true);
+  assert.equal(request.params.agent, undefined);
   assert.equal(request.params.context, "fresh");
-  assert.equal(request.params.worktree, true);
-  assert.match(request.params.task, /MODEL ROLE\nhow explorer/u);
-  assert.match(request.params.task, /EXECUTION ROLE\nexplorer/u);
-  assert.match(result.content[0].text, /Started pstack route pstack-run-1/u);
+  assert.match(request.params.workflowScript, /runs\.run\("how-explorer"/u);
+  assert.match(request.params.workflowScript, /"label":"how explorer"/u);
+  assert.match(request.params.workflowScript, /"agent":"pstack-runtime-read"/u);
+  assert.match(request.params.workflowScript, /"model":"openai-codex\/gpt-5\.6-luna:xhigh"/u);
+  assert.match(request.params.workflowScript, /"fast":true/u);
+  assert.match(request.params.workflowScript, /"worktree":true/u);
+  assert.match(request.params.workflowScript, /PSTACK WORKFLOW IDENTITY\\nhow explorer/u);
+  assert.match(request.params.workflowScript, /EXECUTION ROLE\\nexplorer/u);
+  assert.match(result.content[0].text, /Pstack model role: how explorer/u);
+  assert.match(result.content[0].text, /Run: pstack-run-1/u);
+  assert.doesNotMatch(result.content[0].text, /Pi agent|pstack-runtime-read/u);
   assert.equal(host.entries[0].customType, "pstack-route");
   assert.equal(host.entries[0].data.choices[0].thinking, "xhigh");
   assert.equal(host.entries[0].data.worktree, true);
@@ -163,16 +168,24 @@ test("pstack_followup continues a completed scalar owner with the same route", a
     worktree: true,
   }, new AbortController().signal, undefined, ownerContext);
 
+  const ownerSpawn = spawnRequest(host.requests);
+  assert.match(ownerSpawn.params.workflowScript, /runs\.run\("feature"/u);
+  assert.match(ownerSpawn.params.workflowScript, /"label":"feature"/u);
+  assert.match(ownerSpawn.params.workflowScript, /"agent":"poteto-agent"/u);
+
   host.pi.events.emit("subagent:async-complete", {
     runId: "owner-1",
     success: true,
     state: "completed",
-    results: [{
-      agent: "delegate",
-      model: "openai-codex/gpt-5.6-sol:high",
-      thinking: "high",
-      status: "completed",
-    }],
+    workflowChildren: {
+      children: [{
+        runId: "owner-child-1",
+        agent: "poteto-agent",
+        model: "openai-codex/gpt-5.6-sol:high",
+        thinking: "high",
+        state: "completed",
+      }],
+    },
   });
 
   const branch = host.entries.map((entry) => ({
@@ -185,9 +198,12 @@ test("pstack_followup continues a completed scalar owner with the same route", a
     task: "Apply the accepted review findings.",
   }, new AbortController().signal, undefined, context(cwd, ["openai-codex/gpt-5.6-sol"], "session-a", branch));
 
-  const request = rpcRequest(host.requests, "resume");
-  assert.equal(request.params.id, "owner-1");
-  assert.equal(request.params.message, "Apply the accepted review findings.");
+  const requests = host.requests.filter((entry) => entry.channel === "subagents:rpc:v1:request" && entry.data.method === "spawn");
+  const request = requests.at(-1).data;
+  assert.match(request.params.workflowScript, /runs\.run\("feature"/u);
+  assert.match(request.params.workflowScript, /"resume":"owner-child-1"/u);
+  assert.match(request.params.workflowScript, /"label":"feature"/u);
+  assert.match(request.params.workflowScript, /Apply the accepted review findings\./u);
   assert.equal(result.details.runId, "owner-2");
   assert.equal(result.details.previousRunId, "owner-1");
   assert.equal(result.details.modelRole, "feature");
@@ -212,7 +228,8 @@ test("pstack_panel launches all configured models through one workflow", async (
 
   const request = spawnRequest(host.requests);
   assert.equal(request.params.context, "fresh");
-  assert.match(request.params.workflowScript, /"agent":"reviewer"/u);
+  assert.match(request.params.workflowScript, /"agent":"pstack-runtime-read"/u);
+  assert.match(request.params.workflowScript, /"label":"how critics 1\/2"/u);
   assert.match(request.params.workflowScript, /openai-codex\/gpt-5\.6-sol:medium/u);
   assert.match(request.params.workflowScript, /anthropic\/claude-opus-5:xhigh/u);
   assert.equal(host.entries[0].data.choices.length, 2);
@@ -270,7 +287,7 @@ test("completion events append observed route evidence", async (testContext) => 
     state: "completed",
     results: [{
       index: 0,
-      agent: "worker",
+      agent: "poteto-agent",
       model: "openai-codex/gpt-5.6-sol",
       thinking: "high",
       status: "completed",
@@ -293,6 +310,8 @@ test("completion events append observed route evidence", async (testContext) => 
   const status = await host.tools.get("pstack_status").execute("status-1", {
     runId: "complete-1",
   }, new AbortController().signal, undefined, context(cwd, ["openai-codex/gpt-5.6-sol"], "session-a", branch));
+  assert.match(status.content[0].text, /Pstack model role: bug-fix/u);
+  assert.match(status.content[0].text, /Execution role: implementer/u);
   assert.match(status.content[0].text, /Success: true/u);
   assert.match(status.content[0].text, /Routing failures: none/u);
   assert.match(status.content[0].text, /Child failures: none/u);
@@ -314,7 +333,7 @@ test("completion events reject an observed model mismatch", async (testContext) 
     success: true,
     state: "completed",
     results: [{
-      agent: "worker",
+      agent: "poteto-agent",
       model: "openai-codex/gpt-5.6-luna:xhigh",
       thinking: "xhigh",
       status: "completed",
@@ -348,13 +367,13 @@ test("completion events expose failed panel children", async (testContext) => {
     workflowChildren: {
       children: [
         {
-          agent: "reviewer",
+          agent: "pstack-runtime-read",
           model: "openai-codex/gpt-5.6-luna:minimal",
           thinking: "minimal",
           state: "rejected",
         },
         {
-          agent: "reviewer",
+          agent: "pstack-runtime-read",
           model: "openai-codex/gpt-5.6-sol:minimal",
           thinking: "minimal",
           state: "completed",
@@ -395,7 +414,7 @@ test("completion waits for the launch session after a session switch", async (te
     success: true,
     state: "completed",
     results: [{
-      agent: "worker",
+      agent: "poteto-agent",
       model: "openai-codex/gpt-5.6-sol:high",
       status: "completed",
     }],

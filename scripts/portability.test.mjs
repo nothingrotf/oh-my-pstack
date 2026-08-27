@@ -6,6 +6,7 @@ import { forbiddenRuntimeBindings, isAllowedRuntimeBinding } from "./portability
 
 const root = resolve(import.meta.dirname, "..");
 const skillsRoot = join(root, "skills");
+const agentsRoot = join(root, "agents");
 
 async function markdownFiles(directory) {
   const files = [];
@@ -45,7 +46,48 @@ test("portable skills contain no package-manager or host-specific resource bindi
   }
 });
 
-test("the Pi package exposes bundled agents to pi-subagents", async () => {
+test("the Pi package exposes valid bundled agents to pi-subagents", async () => {
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   assert.deepEqual(manifest.pi?.subagents?.agents, ["./agents"]);
+
+  const files = (await readdir(agentsRoot)).filter((name) => name.endsWith(".md")).sort();
+  assert.deepEqual(files, [
+    "comment-sicko.md",
+    "poteto-agent.md",
+    "pstack-runtime-evidence.md",
+    "pstack-runtime-read.md",
+  ]);
+
+  const names = [];
+  for (const file of files) {
+    const source = await readFile(join(agentsRoot, file), "utf8");
+    const frontmatter = source.match(/^---\n([\s\S]*?)\n---\n/u)?.[1];
+    assert.ok(frontmatter, `${file} has YAML frontmatter`);
+    const name = frontmatter.match(/^name:\s*(.+)$/mu)?.[1]?.trim();
+    assert.ok(name, `${file} has a runtime name`);
+    names.push(name);
+    assert.match(frontmatter, /^tools:\s*[^\n]+$/mu);
+    assert.doesNotMatch(frontmatter, /^(?:model:\s*\[|thinkingLevel:|read-summarize:)/mu);
+    assert.doesNotMatch(frontmatter, /\b(?:glob|lsp|ast_grep|yield)\b/u);
+  }
+  assert.equal(new Set(names).size, names.length);
+});
+
+test("pstack capability profiles declare the tools required before child execution", async () => {
+  const readProfile = await readFile(join(agentsRoot, "pstack-runtime-read.md"), "utf8");
+  const evidenceProfile = await readFile(join(agentsRoot, "pstack-runtime-evidence.md"), "utf8");
+  const writerProfile = await readFile(join(agentsRoot, "poteto-agent.md"), "utf8");
+
+  for (const tool of ["read", "grep", "find", "ls", "bash"]) {
+    assert.match(readProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+    assert.match(evidenceProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+    assert.match(writerProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+  }
+  for (const tool of ["mcp", "web_search", "source_check", "fetch_content", "get_search_content"]) {
+    assert.match(evidenceProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+  }
+  for (const tool of ["edit", "write"]) {
+    assert.match(writerProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+    assert.doesNotMatch(readProfile, new RegExp(`^tools:.*\\b${tool}\\b`, "mu"));
+  }
 });

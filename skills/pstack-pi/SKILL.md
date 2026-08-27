@@ -21,24 +21,19 @@ The same execution agent can serve several pstack model roles. Each launch still
 
 ## Execution role map
 
-Use the live host inventory. For Pi with `pi-subagents`, use this default map:
+The model role remains the visible run identity. The Pi runtime profile is a private capability detail.
 
-| Execution role | Pi agent | Contract |
+| Execution roles | Private Pi profile | Tool contract |
 | --- | --- | --- |
-| `explorer` | `scout` | Read-only repository reconnaissance and trace reduction. |
-| `watcher` | `scout` | Observe one exact transition and terminate. |
-| `planner` | `oracle` | Technical planning, architecture, decomposition, and sequence design. |
-| `designer` | `oracle` | Product, interaction, and alternative design work. |
-| `reviewer` | `reviewer` | Independent code, protocol, behavior, or security review. |
-| `researcher` | `researcher` | Source-verified external research. |
-| `synthesizer` | `oracle` | Adjudication over frozen reports. |
-| `implementer` | `worker` | Bounded implementation or test changes. |
-| `owner` | `delegate` | One coupled implementation session. |
-| `mechanical` | `worker` | Fully specified low-judgment edits. |
+| `explorer`, `watcher`, `planner`, `designer`, `reviewer`, `synthesizer` | `pstack-runtime-read` | Read-only files and shell verification. |
+| `researcher` | `pstack-runtime-evidence` | Files, shell history, MCP evidence, and web sources. |
+| `implementer`, `owner`, `mechanical` | `poteto-agent` | Bounded file changes and verification. |
 
-OMP can map the same execution roles to `scout`, `designer`, `reviewer`, `security-reviewer`, `librarian`, `task`, and `sonic`.
+Each profile declares a strict tool list. `pi-subagents` verifies that list before the first model turn.
 
-Agent selection never selects the pstack model role.
+OMP can map the same execution roles to its available capability profiles.
+
+Runtime profile selection never selects the pstack model role.
 
 ## Model role routing
 
@@ -70,7 +65,9 @@ Do not write model or effort values to host agent settings. The pstack configura
 
 The root coordinator starts every child. A child never starts another child or asks the user directly.
 
-Every child receives a standalone brief. The router adds the selected model role, execution role, Pi agent, model, and fast state.
+Every child receives a standalone brief. The router adds the model role, workflow name, role prompt, execution role, model, and fast state.
+
+The visible run label uses the model role. The private runtime profile remains in the route ledger for audits.
 
 For one Pi child, call `pstack_launch`:
 

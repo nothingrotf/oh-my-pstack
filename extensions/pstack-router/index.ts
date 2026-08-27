@@ -14,11 +14,11 @@ import {
   EXECUTION_ROLES,
   MODEL_ROLES,
   PstackConfigError,
+  buildFollowupWorkflowScript,
   buildPanelWorkflowScript,
-  buildRoutedTask,
+  buildScalarWorkflowScript,
   defaultContextFor,
   executionAgentFor,
-  formatMaterializedModel,
   isExecutionRole,
   isPanelModelRole,
   isPstackModelRole,
@@ -69,6 +69,7 @@ interface RouteLedgerLaunch {
 
 interface ObservedChild {
   index?: number;
+  runId?: string;
   agent?: string;
   model?: string;
   thinking?: string;
@@ -385,13 +386,15 @@ function parseLedgerLaunch(value: unknown, fallbackSessionId: string): RouteLedg
 function observedChild(value: unknown): ObservedChild | undefined {
   if (!isRecord(value)) return undefined;
   const index = numberField(value, "index");
+  const runId = stringField(value, "runId");
   const agent = stringField(value, "agent");
   const model = stringField(value, "model");
   const thinking = stringField(value, "thinking");
   const status = stringField(value, "status") ?? stringField(value, "state");
-  if (index === undefined && !agent && !model && !thinking && !status) return undefined;
+  if (index === undefined && !runId && !agent && !model && !thinking && !status) return undefined;
   return {
     ...(index !== undefined ? { index } : {}),
+    ...(runId ? { runId } : {}),
     ...(agent ? { agent } : {}),
     ...(model ? { model } : {}),
     ...(thinking ? { thinking } : {}),
@@ -502,10 +505,9 @@ function formatLaunchText(launch: RouteLedgerLaunch): string {
     return `${choice.number}. ${model}${choice.fast ? " [fast]" : ""}`;
   });
   return [
-    `Started pstack route ${launch.runId}.`,
-    `Model role: ${launch.modelRole}`,
+    `Pstack model role: ${launch.modelRole}`,
+    `Run: ${launch.runId}`,
     `Execution role: ${launch.executionRole}`,
-    `Pi agent: ${launch.agent}`,
     `Context: ${launch.context}`,
     `Worktree: ${launch.worktree}`,
     "Resolved models:",
@@ -549,11 +551,15 @@ function formatRouteStatus(input: unknown): string {
   const kind = stringField(value, "kind") ?? "unknown";
   const state = stringField(value, "state") ?? (kind === "launch" ? "running" : "unknown");
   const success = booleanField(value, "success");
+  const modelRole = stringField(value, "modelRole") ?? "unknown";
+  const executionRole = stringField(value, "executionRole") ?? "unknown";
   const routing = failureFields(value, "routingFailures");
   const children = failureFields(value, "childFailures");
   const observed = Array.isArray(value.observed) ? JSON.stringify(value.observed) : "[]";
   return [
-    `Pstack route: ${runId}`,
+    `Pstack model role: ${modelRole}`,
+    `Execution role: ${executionRole}`,
+    `Run: ${runId}`,
     `State: ${state}`,
     `Success: ${success === undefined ? "pending" : String(success)}`,
     `Routing failures: ${routing.length > 0 ? routing.join(" | ") : "none"}`,
@@ -728,10 +734,19 @@ export default function pstackRouter(pi: ExtensionAPI): void {
       if (source.executionRole !== "owner" || source.choices.length !== 1) {
         throw new PstackConfigError(`Pstack route '${params.runId}' is not a scalar owner route.`);
       }
-      onUpdate?.({ content: [{ type: "text", text: `Continue owner route ${params.runId}.` }], details: {} });
-      const response = await rpcCall(pi, "resume", {
-        id: params.runId,
-        message: params.task,
+      const observed = Array.isArray(status.observed) ? status.observed.map(observedChild).filter((child) => child !== undefined) : [];
+      const childRunId = observed[0]?.runId ?? params.runId;
+      onUpdate?.({ content: [{ type: "text", text: `Continue owner model role ${source.modelRole}.` }], details: {} });
+      const response = await rpcCall(pi, "spawn", {
+        workflowScript: buildFollowupWorkflowScript({
+          modelRole: source.modelRole,
+          childRunId,
+          task: params.task,
+        }),
+        context: source.context,
+        cwd: source.cwd,
+        async: true,
+        chatProgress: "auto",
       }, signal);
       const runId = extractRunId(response);
       const launch = appendFollowupLaunch(pi, active, source, runId, ctx.sessionManager.getSessionId());
@@ -768,20 +783,17 @@ export default function pstackRouter(pi: ExtensionAPI): void {
       }
       const model = route.models[number - 1];
       if (!model) throw new PstackConfigError(`Model role '${route.modelRole}' has no choice ${number}.`);
-      const task = buildRoutedTask({
-        modelRole: route.modelRole,
-        executionRole: route.executionRole,
-        agent: route.agent,
-        ...model,
-        task: params.task,
-      });
       const response = await rpcCall(pi, "spawn", {
-        agent: route.agent,
-        task,
-        model: formatMaterializedModel(model),
-        ...(model.fast ? { fast: true } : {}),
+        workflowScript: buildScalarWorkflowScript({
+          modelRole: route.modelRole,
+          executionRole: route.executionRole,
+          agent: route.agent,
+          ...model,
+          task: params.task,
+          worktree: params.worktree ?? false,
+        }),
+        chatProgress: "auto",
         context: route.context,
-        worktree: params.worktree ?? false,
         cwd: route.cwd,
         async: true,
         ...(params.timeoutSeconds ? { timeoutMs: params.timeoutSeconds * 1_000 } : {}),
