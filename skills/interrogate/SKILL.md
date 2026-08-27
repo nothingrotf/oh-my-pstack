@@ -37,9 +37,9 @@ Write one clear paragraph. Reviewers challenge whether the work achieves the int
 
 ## Step 3, Spawn Reviewers
 
-Resolve the `interrogate reviewers` panel. Launch one read-only child per configured entry, concurrently. Use execution role `reviewer` for every child and pass its entry as the per-run `model`. Extend or shrink the Reviewer A/B/C/D labels to the entry count. If no panel exists, use a diverse host-supported fallback panel.
+Resolve the `interrogate reviewers` panel. On Pi, call `pstack_panel` with execution role `reviewer`. Supply one read-only task per configured entry. Extend or shrink the Reviewer A/B/C/D labels to the entry count. If no panel exists, stop the Pi dispatch.
 
-If a configured model is unavailable, use the closest live model and record the substitution. Map `inherit-parent` and `auto` through the host's explicit inheritance mechanism.
+If a configured model is unavailable, stop the Pi dispatch. The deterministic router resolves `inherit-parent` and `auto` to the concrete parent choice.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

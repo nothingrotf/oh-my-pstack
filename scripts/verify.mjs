@@ -136,6 +136,12 @@ try {
   if (!packageManifest.pi?.skills?.includes("./skills")) {
     failures.push("package.json does not expose ./skills through the pi manifest");
   }
+  if (!packageManifest.pi?.extensions?.includes("./extensions/pstack-router/index.ts")) {
+    failures.push("package.json does not expose the deterministic pstack router extension");
+  }
+  if (packageManifest.peerDependencies?.["@earendil-works/pi-coding-agent"] === undefined) {
+    failures.push("package.json does not declare the Pi host peer dependency");
+  }
   if (requiredKeywords.some((keyword) => !packageManifest.keywords?.includes(keyword))) {
     failures.push("package.json is missing discoverability keywords");
   }
@@ -145,11 +151,17 @@ try {
   if (claudeManifest.name !== "pstack-pi") {
     failures.push(".claude-plugin/plugin.json does not use the pstack-pi name");
   }
+  if (claudeManifest.version !== packageManifest.version) {
+    failures.push(".claude-plugin/plugin.json version differs from package.json");
+  }
   const codexManifest = JSON.parse(
     await readFile(join(root, ".codex-plugin", "plugin.json"), "utf8")
   );
   if (codexManifest.name !== "pstack-pi" || codexManifest.skills !== "./skills/") {
     failures.push(".codex-plugin/plugin.json has incorrect package identity or skills path");
+  }
+  if (codexManifest.version !== packageManifest.version) {
+    failures.push(".codex-plugin/plugin.json version differs from package.json");
   }
   const upstreamLock = JSON.parse(
     await readFile(join(root, "upstream.lock.json"), "utf8")
@@ -158,7 +170,8 @@ try {
     upstreamLock.repository !== "https://github.com/cursor/plugins.git" ||
     upstreamLock.ref !== "main" ||
     !/^[0-9a-f]{40}$/u.test(upstreamLock.commit) ||
-    !Array.isArray(upstreamLock.sourceRoots)
+    !Array.isArray(upstreamLock.sourceRoots) ||
+    !upstreamLock.protectedPrefixes?.includes("extensions/pstack-router/")
   ) {
     failures.push("upstream.lock.json is missing an authoritative pinned source");
   }

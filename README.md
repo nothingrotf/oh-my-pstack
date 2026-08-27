@@ -17,6 +17,8 @@ adapter.
 - `poteto-mode` for routing work through the right playbook.
 - `pstack-pi` for translating roles, delegation, models, transcripts, questions,
   and long-running work to the active host.
+- A Pi extension that resolves model roles and delegates each route through
+  `pi-subagents`.
 - Native package metadata for OMP/Pi, Claude Code, and Codex, plus OpenCode setup
   guidance.
 - Daily upstream synchronization that opens a verified pull request.
@@ -45,16 +47,18 @@ installed Git packages, or `pi remove https://github.com/shrimpwtf/oh-my-pstack`
 to remove it. Pi packages run with full system access; review the source before
 installing and keep the package pinned or update it deliberately.
 
-For parallel workers and per-role model assignments, install Pi's delegation
-extension too:
+Install `pi-subagents` version 0.57.0 or later:
 
 ```bash
 pi install npm:pi-subagents
 ```
 
-Restart Pi and run `/subagents-doctor`. The extension provides the `subagent` tool
-and built-in `scout`, `researcher`, `worker`, `reviewer`, `oracle`, and `delegate`
-agents. It is separate from pstack because native Pi does not include subagents.
+Restart Pi. Run `/subagents-doctor`, then run `/pstack-doctor`. The delegation
+extension provides the `subagent` tool and the built-in execution agents.
+
+The pstack package provides `pstack_launch`, `pstack_panel`, and `pstack_status`.
+These tools read the model policy and pass explicit models to `pi-subagents`.
+The model role never changes the selected execution agent.
 
 ### OMP
 
@@ -135,11 +139,33 @@ selection. It then configures every original pstack model role. On Pi, choices
 use `provider/model-id:thinking` and live in `.pstack/config.md` or
 `$PSTACK_CONFIG`. Setup does not change host agent settings.
 
-Native Pi can list and switch one active model, but it does not include
-subagents. Install `pi-subagents`, restart Pi, and run `/subagents-doctor` before
-setup. Each pstack workflow passes its configured choice through the child
-launch `model` field. Without the extension, setup reports the missing delegation
-capability and writes no active model configuration.
+Native Pi does not include subagents. Install `pi-subagents`, restart Pi, and run
+both doctor commands before setup. Each pstack workflow calls `pstack_launch` or
+`pstack_panel`. The router performs these operations:
+
+1. Read `$PSTACK_CONFIG` or `.pstack/config.md`.
+2. Resolve the pstack model role.
+3. Validate the model against the live Pi inventory.
+4. Map the execution role to a Pi agent.
+5. Launch through the structured `pi-subagents` RPC bridge.
+6. Store the requested and observed route in the session ledger.
+7. Expose the validated result through `pstack_status`.
+
+Treat the direct `pi-subagents` completion as provisional. After the wait, call
+`pstack_status`. Accept the result only when success is true and both failure
+lists are empty.
+
+Use `/pstack-routes` to inspect the latest ledger entries. Add `[fast]` after a
+supported explicit model to request native Pi fast mode:
+
+```text
+how explorer: openai-codex/gpt-5.6-luna:xhigh [fast]
+```
+
+The router removes `[fast]` from the model identifier. It sends `fast: true` as a
+separate launch field. The router rejects unsupported fast-mode models. The
+provider account can still reject priority service. The ledger records that child
+failure.
 
 Then route your first real task through the main workflow:
 
@@ -182,15 +208,18 @@ silently overwrites them.
 ## Development and verification
 
 ```bash
+npm install
+npm test
 npm run verify
+npm run typecheck
 npm run test:sync
 bun install --cwd skills/poteto-mode/scripts --frozen-lockfile
 bun test orch watch-pr
 bunx tsc --project skills/poteto-mode/scripts/watch-pr/tsconfig.json --noEmit --strict
 ```
 
-`npm run verify` checks skill inventory, frontmatter, local references, manifests,
-the upstream lock, and forbidden vendor-specific runtime bindings.
+`npm run verify` checks the skill inventory, references, manifests, model routes,
+the extension types, and the protected upstream boundary.
 
 ## Host contract
 

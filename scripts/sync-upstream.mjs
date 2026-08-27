@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { readFileSync } from "node:fs";
@@ -126,6 +127,23 @@ async function protectedChanges(lock, sourceRoot, commit) {
   return [...changes].sort();
 }
 
+function deletedDestinationPaths(lock, sourceRoot, commit) {
+  const sourceRoots = lock.sourceRoots.map((mapping) => mapping.source);
+  const deletedSources = git(
+    ["diff", "--name-only", "--diff-filter=D", lock.commit, commit, "--", ...sourceRoots],
+    sourceRoot,
+  ).split("\n").filter(Boolean);
+  const deleted = new Set();
+  for (const sourcePath of deletedSources) {
+    for (const mapping of lock.sourceRoots) {
+      const prefix = `${mapping.source}/`;
+      if (!sourcePath.startsWith(prefix)) continue;
+      deleted.add(`${mapping.destination}/${sourcePath.slice(prefix.length)}`);
+    }
+  }
+  return deleted;
+}
+
 async function applyUpdate(lock, sourceRoot, commit, dryRun) {
   const conflicts = await protectedChanges(lock, sourceRoot, commit);
   if (conflicts.length > 0) {
@@ -136,6 +154,7 @@ async function applyUpdate(lock, sourceRoot, commit, dryRun) {
   }
 
   const changed = [];
+  const latestDestinations = new Set();
   for (const mapping of lock.sourceRoots) {
     const sourceDirectory = join(sourceRoot, mapping.source);
     for (const sourceFile of await filesUnder(sourceDirectory)) {
@@ -145,6 +164,7 @@ async function applyUpdate(lock, sourceRoot, commit, dryRun) {
         relative(sourceDirectory, sourceFile),
       );
       const destinationKey = relative(root, destination);
+      latestDestinations.add(destinationKey);
       if (isProtectedPathFor(lock, destinationKey)) continue;
       const next = normalizeContent(await readFile(sourceFile, "utf8"));
       let current = null;
@@ -162,8 +182,26 @@ async function applyUpdate(lock, sourceRoot, commit, dryRun) {
     }
   }
 
+  for (const destinationKey of deletedDestinationPaths(lock, sourceRoot, commit)) {
+    if (latestDestinations.has(destinationKey) || isProtectedPathFor(lock, destinationKey)) continue;
+    const destination = join(root, destinationKey);
+    try {
+      if (!(await stat(destination)).isFile()) continue;
+    } catch {
+      continue;
+    }
+    changed.push(destinationKey);
+    if (!dryRun) await rm(destination, { force: true });
+  }
+
   if (changed.length === 0) {
     console.log(`No managed skill changes for upstream ${commit}.`);
+    if (!dryRun) {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ ...lock, commit }, null, 2)}\n`,
+      );
+    }
     return 0;
   }
   console.log(`${dryRun ? "Would update" : "Updated"} ${changed.length} managed files:`);

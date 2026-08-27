@@ -52,7 +52,7 @@ Every child brief must stand alone. It must name the goal, execution role, writa
 
 ## Model role configuration
 
-Read `$PSTACK_CONFIG` when the variable is set. Otherwise read `.pstack/config.md` from the current project.
+Read `$PSTACK_CONFIG` when the variable is set. Otherwise, read `.pstack/config.md` from the current project. The environment path replaces the project path.
 
 The left side of each line is a pstack model role. The right side is a concrete child model choice or a panel list.
 
@@ -61,10 +61,11 @@ Expand the two shared upstream labels exactly:
 - `feature, refactoring` configures `feature` and `refactoring`.
 - `reflect judgment, divergent, synthesizer` configures `reflect judgment`, `reflect divergent`, and `reflect synthesizer`.
 
-For Pi, concrete choices use `provider/model-id` with an optional effort suffix:
+For Pi, concrete choices use `provider/model-id` with an optional thinking suffix. Add `[fast]` after supported explicit choices:
 
 ```text
 openai-codex/gpt-5.6-sol:max
+openai-codex/gpt-5.6-luna:xhigh [fast]
 anthropic/claude-fable-5:medium
 ```
 
@@ -72,17 +73,23 @@ For another host, use the exact model value accepted by its child facility.
 
 Resolve the exact model role named by the active workflow. Do not substitute an execution role name as the configuration key.
 
-When a concrete choice exists, pass it through the per-run `model` field for that child. This launch value must take precedence over persistent host agent model defaults.
+On Pi, call `pstack_launch` for one child. Call `pstack_panel` for all configured entries in one panel role. Call `pstack_status` after the wait.
 
-For Pi with `pi-subagents`, pass the complete `provider/model-id:thinking` value. Do not split the effort into persistent agent settings.
+The deterministic router validates the complete configuration against the live model inventory. It maps the execution role to a Pi agent separately.
 
-Map `inherit-parent` and `auto` to the host's explicit parent-model inheritance mechanism. For `pi-subagents`, pass `model: "inherit"`. Do not omit the field when omission can activate an agent default.
+The router passes `provider/model-id:thinking` through the per-run `model` field. It passes `[fast]` through the separate `fast: true` field. A provider account can reject priority service. Treat that response as a child failure.
 
-When a model role is absent, use the workflow's portable fallback. If no fallback exists, use the execution agent default and report that no pstack model role was active.
+The router resolves `inherit-parent` and `auto` to the concrete parent model and thinking level. This preserves parent thinking without an agent default.
 
-For a panel, launch one child per configured entry. Select the execution role independently. Pass each entry through that child's per-run `model` field.
+If a model role is absent, stop the Pi dispatch. If a concrete model is unavailable, stop the Pi dispatch. Do not use an agent default.
 
-Record the resolved model and effort from each child result. If a concrete configured choice resolves to another model or effort, reject that result as a routing failure. Do not count an implicit fallback as the configured model role.
+For a panel, the router launches one child per configured entry. `pstack_panel` uses one shared execution role and one Pi agent.
+
+The router records requested route data in a custom session entry. It records observed child data after the asynchronous run completes.
+
+Treat the direct `pi-subagents` completion as provisional. Call `pstack_status` before acceptance. Require true success and empty failure lists.
+
+If an observed model or thinking level differs, reject that result as a routing failure. Do not count an implicit fallback.
 
 The pstack setup does not modify host agent settings. User-owned host overrides can still control tools, skills, permissions, context, and fallback policy. A concrete per-run `model` remains the pstack model contract.
 
@@ -90,13 +97,17 @@ The pstack setup does not modify host agent settings. User-owned host overrides 
 
 Model inventory is not model delegation. A host can list models without a child facility that accepts a model choice.
 
-Native Pi does not include subagents. Install `pi-subagents` when pstack needs parallel children or per-run models:
+Native Pi does not include subagents. Install `pi-subagents` version 0.57.0 or later for parallel children and per-run models:
 
 ```bash
 pi install npm:pi-subagents
 ```
 
-Restart Pi and run `/subagents-doctor`. Continue only when the `subagent` tool and required execution agents are visible.
+Restart Pi. Run `/subagents-doctor`, then run `/pstack-doctor`. Continue only when both checks pass.
+
+The pstack package registers `pstack_launch`, `pstack_panel`, and `pstack_status`. These tools use the structured `pi-subagents` RPC bridge. They do not scrape transcripts or invoke private APIs.
+
+Use `/pstack-routes` to inspect the latest route ledger entries in the current Pi session.
 
 If the host cannot select a model for each child, report the capability gap. Do not write or claim an active pstack model configuration.
 

@@ -26,7 +26,7 @@ Track one checklist entry per phase before launching anything. Use the host's pl
 1. State the done predicate and the artifact or report the swarm must return.
 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
 3. Set N from the user or derive it from the shape. N is total workers, not the host's concurrency limit.
-4. Resolve the `swarm workers` model role. Pass its configured choice as each worker's per-run `model`. Select the execution role from the worker task. For a model race, name each arm's model up front.
+4. Resolve the `swarm workers` model role. On Pi, call `pstack_launch` once per worker. Select the execution role from each task. The router binds the configured per-run `model`. For a model race, name each arm's model before launch.
 5. Give each worker its own writable output when it writes. Use a worktree, branch, or `/tmp/swarm-<slug>/worker-<n>/`.
 
 ## Phase B: Fan out

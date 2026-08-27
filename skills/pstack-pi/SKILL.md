@@ -42,28 +42,27 @@ Agent selection never selects the pstack model role.
 
 ## Model role routing
 
-Read `$PSTACK_CONFIG` when set. Otherwise read `.pstack/config.md` from the current project.
+On Pi, use `pstack_launch` for one child. Use `pstack_panel` for all entries in one panel role.
 
-Expand `feature, refactoring` into the `feature` and `refactoring` model roles. Expand `reflect judgment, divergent, synthesizer` into `reflect judgment`, `reflect divergent`, and `reflect synthesizer`.
+The tools read `$PSTACK_CONFIG` when set. Otherwise, they read `.pstack/config.md` from the target project.
 
-Resolve the exact model role named by the active workflow. Do not replace it with an execution role or host agent name.
+The router expands both shared upstream labels. It resolves the exact model role from the active workflow.
 
-For every concrete configured choice:
+The router performs these operations for each choice:
 
-1. Verify the base model against the live inventory.
-2. Preserve its effort suffix.
-3. Pass the complete choice through the per-run `model` field.
-4. Select the execution agent independently.
-5. Record the model and effort reported by the child.
-6. Reject the result when the reported choice differs from the configured choice.
+1. Parse the base model, thinking level, and `[fast]` marker.
+2. Verify the base model against the live inventory.
+3. Select the execution agent from the independent execution role.
+4. Pass the complete model through the per-run `model` field.
+5. Pass fast mode through the separate `fast` field.
+6. Record the requested route in the Pi session ledger.
+7. Record the observed child data after completion.
 
-For Pi with `pi-subagents`, use `provider/model-id:thinking` as the per-run value.
+The router resolves `inherit-parent` and `auto` to the active parent model and thinking level. It then passes that concrete value per run.
 
-Map `inherit-parent` and `auto` to `model: "inherit"` on `pi-subagents`. This explicit value bypasses persistent agent model defaults.
+If the model role is absent, stop the dispatch. If the model is unavailable, stop the dispatch. Do not use an agent default.
 
-If a model role is absent, use the workflow fallback. If no fallback exists, use the execution agent default and report the missing pstack model role.
-
-A panel value contains one entry per child. Launch the same execution agent several times when the workflow needs one behavior with several model perspectives.
+A panel value contains one entry per child. The same execution agent can serve each model perspective.
 
 Do not write model or effort values to host agent settings. The pstack configuration remains the model policy.
 
@@ -71,39 +70,37 @@ Do not write model or effort values to host agent settings. The pstack configura
 
 The root coordinator starts every child. A child never starts another child or asks the user directly.
 
-Every child receives a standalone brief. It includes the selected pstack model role and execution role.
+Every child receives a standalone brief. The router adds the selected model role, execution role, Pi agent, model, and fast state.
 
-For one Pi child:
+For one Pi child, call `pstack_launch`:
 
-```js
-return runs.run("parser-overflow-worker", {
-  agent: "worker",
-  model: "openai-codex/gpt-5.6-sol:max",
-  task: "GOAL\n...\n\nMODEL ROLE\nbug-fix\n\nEXECUTION ROLE\nimplementer\n\nSCOPE\n...\n\nACCEPTANCE\n...\n\nVERIFY\n...\n\nFORBIDDEN\n...\n\nREPORT\n...",
-  worktree: true
-})
+```json
+{
+  "modelRole": "bug-fix",
+  "executionRole": "implementer",
+  "task": "GOAL\n...\n\nSCOPE\n...\n\nACCEPTANCE\n...\n\nVERIFY\n...\n\nFORBIDDEN\n...\n\nREPORT\n...",
+  "context": "fork",
+  "worktree": true
+}
 ```
 
-For a Pi panel:
+For a Pi panel, call `pstack_panel`:
 
-```js
-return runs.all([
-  {
-    key: "critic-fable",
-    agent: "reviewer",
-    model: "anthropic/claude-fable-5:max",
-    task: "Review the frozen architecture against the supplied rubric."
-  },
-  {
-    key: "critic-sol",
-    agent: "reviewer",
-    model: "openai-codex/gpt-5.6-sol:max",
-    task: "Review the frozen architecture against the supplied rubric."
-  }
-])
+```json
+{
+  "modelRole": "how critics",
+  "executionRole": "reviewer",
+  "tasks": [
+    "Review the frozen architecture against the supplied rubric.",
+    "Review the frozen architecture against the supplied rubric.",
+    "Review the frozen architecture against the supplied rubric.",
+    "Review the frozen architecture against the supplied rubric."
+  ],
+  "context": "fresh"
+}
 ```
 
-Use one top-level workflow for independent concurrent children. Start all panel participants before consuming a verdict.
+The returned run identifier belongs to `pi-subagents`. Use `subagent_wait` or the `subagent` status action. Then call `pstack_status`. Accept the result only when success is true and both failure lists are empty.
 
 Use a managed worktree for a writer that needs isolated files. Use a fresh context for independent review and cross-provider children. Use retained context only for one coupled owner.
 
@@ -140,34 +137,36 @@ A dispatch is forbidden until its brief contains these sections.
 1. Resolve the model role.
 2. Select the execution role.
 3. Author one standalone brief.
-4. Start one child with the configured per-run `model`.
-5. Record the run ID, role pair, scope, base SHA, and expected artifact.
+4. Call `pstack_launch` with the model role, execution role, and brief.
+5. Record the returned run ID, role pair, scope, base SHA, and expected artifact.
 6. Read the complete result and transcript when required.
-7. Verify the reported model and effort.
-8. Inspect the artifact and run parent verification.
-9. Accept the unit only after the parent verifies it.
+7. Call `pstack_status` with the returned run ID.
+8. Reject a route with false success or a nonempty failure list.
+9. Inspect the artifact and run parent verification.
+10. Accept the unit only after the parent verifies it.
 
 A model role, execution role, or unit change starts a fresh child.
 
 ### Panel
 
 1. Resolve the panel model role.
-2. Create one child per configured entry.
-3. Select each execution role independently.
-4. Start every participant concurrently.
+2. Create one task per configured entry.
+3. Select one shared execution role for `pstack_panel`.
+4. Call `pstack_panel` to start every participant concurrently.
 5. Track participants by stable key, model, and run ID.
 6. Wait for every required result or cancel it explicitly.
-7. Reject a result with a mismatched model or stale generation.
-8. Freeze candidate artifacts before starting judges.
-9. Freeze judge reports before synthesis.
-10. Treat synthesis as advice. The root selects and verifies.
+7. Call `pstack_status` before result acceptance.
+8. Reject a result with a mismatched model or stale generation.
+9. Freeze candidate artifacts before starting judges.
+10. Freeze judge reports before synthesis.
+11. Treat synthesis as advice. The root selects and verifies.
 
 Do not mix writers, reviewers, or synthesizers in one child session. Do not let a reviewer inspect a moving head.
 
 ### Long-lived owner
 
 1. Resolve the model role once.
-2. Start one non-isolated owner with the complete brief.
+2. Call `pstack_launch` once with the `owner` execution role and complete brief.
 3. Record its run ID and reuse it for coupled follow-ups.
 4. Keep the owner inside its assigned branch and paths.
 5. Require a terminal report at each verification boundary.
@@ -177,7 +176,7 @@ Do not mix writers, reviewers, or synthesizers in one child session. Do not let 
 ### One-shot watcher
 
 1. Resolve the watcher model role when the workflow defines one.
-2. Start one background `explorer` execution role.
+2. Call `pstack_launch` with the `watcher` execution role.
 3. Put the exact branch, SHA, generation, predicate, and timebox in the brief.
 4. Require one meaningful event and a terminal report.
 5. Reject a stale generation or model mismatch.

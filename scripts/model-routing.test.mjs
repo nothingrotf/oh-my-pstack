@@ -52,6 +52,30 @@ const consumers = new Map([
   ["interrogate reviewers", "skills/interrogate/SKILL.md"],
 ]);
 
+const routingTools = new Map([
+  ["feature", "pstack_launch"],
+  ["refactoring", "pstack_launch"],
+  ["bug-fix", "pstack_launch"],
+  ["perf-issue", "pstack_launch"],
+  ["hillclimb", "pstack_launch"],
+  ["judgment and prose", "pstack_launch"],
+  ["hardest tasks", "pstack_launch"],
+  ["how explorer", "pstack_launch"],
+  ["how explainer", "pstack_launch"],
+  ["how critics", "pstack_panel"],
+  ["why investigators", "pstack_launch"],
+  ["why synthesizer", "pstack_launch"],
+  ["reflect tooling", "pstack_launch"],
+  ["reflect judgment", "pstack_launch"],
+  ["reflect divergent", "pstack_launch"],
+  ["reflect synthesizer", "pstack_launch"],
+  ["arena runners", "pstack_panel"],
+  ["arena cross-judge pool", "pstack_launch"],
+  ["swarm workers", "pstack_launch"],
+  ["architect runners", "pstack_panel"],
+  ["interrogate reviewers", "pstack_panel"],
+]);
+
 test("setup preserves every upstream pstack model role without writing host agent overrides", async () => {
   const setup = await load("skills/setup-pstack/SKILL.md");
   const shape = setup.match(/Keep these original model role lines and labels:\n\n```md\n([\s\S]*?)\n```/u)?.[1];
@@ -61,6 +85,9 @@ test("setup preserves every upstream pstack model role without writing host agen
     .filter((line) => line && !line.startsWith("#"))
     .map((line) => line.slice(0, line.indexOf(":")));
   assert.deepEqual(configuredRoles, modelRoleLines);
+  assert.match(setup, /\[fast\]/u);
+  assert.match(setup, /\/pstack-doctor/u);
+  assert.match(setup, /`pstack_status`/u);
   assert.doesNotMatch(setup, /agentOverrides|\.pi\/settings\.json|opencode\.json/u);
 });
 
@@ -70,16 +97,28 @@ test("runtime keeps pstack model roles independent from execution roles", async 
   for (const source of [runtime, adapter]) {
     assert.match(source, /model roles and execution roles are independent/iu);
     assert.match(source, /per-run `model`/u);
+    assert.match(source, /`pstack_launch`/u);
+    assert.match(source, /`pstack_panel`/u);
+    assert.match(source, /`pstack_status`/u);
     assert.doesNotMatch(source, /subagents\.agentOverrides/u);
   }
   assert.doesNotMatch(adapter, /Do not put a `model` field/u);
 });
 
-test("every pstack model role is consumed by its owning workflow", async () => {
+test("every pstack model role uses the deterministic router in its owning workflow", async () => {
   for (const [role, path] of consumers) {
     const source = await load(path);
-    assert.match(source, new RegExp("`" + escapeRegExp(role) + "`", "u"), `${path} must consume ${role}`);
-    assert.match(source, /per-run `model`/u, `${path} must bind its model role per run`);
+    const routingTool = routingTools.get(role);
+    const rolePattern = new RegExp("`" + escapeRegExp(role) + "`", "gu");
+    const occurrences = [...source.matchAll(rolePattern)];
+    assert.ok(occurrences.length > 0, `${path} must consume ${role}`);
+    assert.ok(routingTool);
+    const scopedRoute = occurrences.some((occurrence) => {
+      const index = occurrence.index ?? 0;
+      const window = source.slice(Math.max(0, index - 300), index + 700);
+      return window.includes(`\`${routingTool}\``);
+    });
+    assert.equal(scopedRoute, true, `${path} must route ${role} through ${routingTool} near the owning step`);
   }
 });
 
@@ -90,6 +129,8 @@ test("upstream sync protects every adapted model-routing owner", async () => {
     "skills/setup-pstack/SKILL.md",
     "skills/pstack-pi/SKILL.md",
     "skills/pstack-pi/references/runtime.md",
+    "extensions/pstack-router/index.ts",
+    "extensions/pstack-router/core.ts",
   ]);
   for (const path of paths) {
     const protectedPath = lock.protectedPaths.includes(path) || lock.protectedPrefixes.some((prefix) => path.startsWith(prefix));

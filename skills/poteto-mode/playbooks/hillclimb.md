@@ -9,7 +9,7 @@ Core discipline: one change, one measurement, keep or revert. Never stack untest
 3. Open the decision log via the **show-me-your-work** skill. A `decision.tsv`, one row per attempt: id, hypothesis, change, before, after, delta, tests, verdict (kept or reverted), note. This is the run's memory. Read it before each attempt so the search accumulates instead of circling. Keep it out of the tree (gitignored) so it survives reverts.
 4. Ground each hypothesis in the architecture model from step 1, so it names a specific mechanism ("defer X off the boot path because it blocks first paint"), not "try memoizing something".
 5. Loop, one hypothesis per iteration:
-    - Resolve the `hillclimb` pstack model role. Hand the change to execution role `implementer` through the active adapter's **Bounded session** protocol with the configured per-run `model` and a tight scope. Supervise and review the diff rather than implementing inline.
+    - Resolve the `hillclimb` pstack model role. On Pi, call `pstack_launch` with execution role `implementer` and a tight brief. The router binds the configured per-run `model`. Supervise and review the diff rather than implementing inline.
    - Measure before and after with the frozen harness, and run the regression gate.
    - Accept only when the metric moves past noise and the gate stays green. Otherwise revert the change in full; a tweak that "might help" does not ride along.
    - One commit per accepted fix, staging only the files you changed (`git add <files>`, never `-A`). Log the row either way, kept or reverted.

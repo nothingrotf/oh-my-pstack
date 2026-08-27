@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Follow the [portable runtime contract](../pstack-pi/references/runtime.md) for transcript discovery, execution roles, model roles, tool access, questions, and skill authoring.
 
-`reflect judgment`, `reflect tooling`, `reflect divergent`, and `reflect synthesizer` are pstack model roles. Pass each configured choice through its child launch per-run `model` field.
+`reflect judgment`, `reflect tooling`, `reflect divergent`, and `reflect synthesizer` are pstack model roles. On Pi, route each child through `pstack_launch`. The router binds each configured per-run `model`.
 
 Mine the current conversation for durable learnings, then route them into skill edits.
 
@@ -38,7 +38,7 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 ### 2. Spawn three reviewers in parallel
 
-Launch three reviewer children concurrently through the host's task facility. Resolve one model role per lens. Pass the configured choice as that child's per-run `model`. Select the execution role separately. Grant each child read access to the transcript and required context tools, but forbid file writes in the brief.
+Launch three reviewer children before awaiting results. Resolve one model role per lens. On Pi, call `pstack_launch` three times with execution role `reviewer`. Grant each child read access to the transcript and required tools. Forbid file writes in the brief.
 
 | Lens | Model role | Execution role | Prompt template |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ### 3. Synthesize
 
-Launch one child with execution role `synthesizer`. Resolve the `reflect synthesizer` model role and pass its configured choice as the per-run `model`. Give the child the tools required to verify citations while forbidding repository writes. Use `references/synthesizer.md` verbatim, with each reviewer output inserted where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+Launch one child with execution role `synthesizer`. On Pi, call `pstack_launch` with model role `reflect synthesizer`. Give the child the tools required to verify citations. Forbid repository writes. Use `references/synthesizer.md` verbatim with each reviewer output inserted where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

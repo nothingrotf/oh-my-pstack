@@ -7,7 +7,7 @@ description: Configure the model for each original pstack workflow role. Detects
 
 Follow the [portable runtime contract](../pstack-pi/references/runtime.md) throughout this setup.
 
-Write the optional pstack configuration at `$PSTACK_CONFIG` when that variable is set. Otherwise use `.pstack/config.md` in the current project. This file is an override layer.
+If `$PSTACK_CONFIG` is set, write the complete policy at that path. Otherwise, write `.pstack/config.md` in the current project. The environment path replaces the project path. The two files do not form layers.
 
 Model roles and execution roles are independent. A pstack model role selects a model for one workflow step. A host execution role selects the child prompt, tools, permissions, and context.
 
@@ -18,11 +18,13 @@ Detect both capabilities:
 1. Enumerate the models available to the current host.
 2. Select a model for each child launch.
 
-For Pi, use `pi --list-models` for the model inventory. Require the `subagent` tool for child launches. Recommend `pi install npm:pi-subagents` when the tool is absent. Tell the user to restart Pi and run `/subagents-doctor` after installation.
+For Pi, use `pi --list-models` for the model inventory. Require `pstack_launch`, `pstack_panel`, `pstack_status`, and the `subagent` tool. Recommend `pi install npm:pi-subagents` when the `subagent` tool is absent. Tell the user to restart Pi. Tell the user to run `/subagents-doctor` and `/pstack-doctor` after installation.
 
 Use the live host inventory. Do not copy model identifiers from examples. Do not write configuration when the host cannot select a model for each child.
 
 For Pi, record concrete choices as `provider/model-id:thinking` when the model supports effort control. Pi supports `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. The base `provider/model-id` must exist in the live inventory.
+
+Add `[fast]` after a concrete choice to request native Pi fast mode. The deterministic router supports fast mode for `openai-codex/gpt-5.6-luna` and `openai-codex/gpt-5.6-sol`. Do not add `[fast]` to `inherit-parent`, `auto`, or another model.
 
 Use the exact child model value that another host accepts. Preserve an effort suffix only when that host supports it.
 
@@ -59,9 +61,9 @@ For panel roles, list length controls fan-out:
 
 ## 4. Validate the choices
 
-Verify every concrete base model against the live inventory. Verify each effort level when the host reports supported levels.
+Verify every concrete base model against the live inventory. Verify each effort level when the host reports supported levels. On Pi, run `/pstack-doctor` after the write.
 
-If the host can run a cheap model probe, probe every distinct concrete choice once. Report authentication, quota, and unsupported-effort failures. Ask for a replacement instead of writing an unusable choice.
+If the host can run a cheap model probe, probe every distinct concrete choice once. Probe each `[fast]` choice with fast mode active. Report authentication, quota, priority-service, and unsupported-effort failures. Ask for a replacement instead of writing an unusable choice.
 
 Accept `inherit-parent` or `auto` only when the child runtime can inherit the current parent model.
 
@@ -94,7 +96,7 @@ architect runners: <judgment-model>, <instruction-model>, <explorer-model>, <str
 interrogate reviewers: <judgment-model>, <instruction-model>, <explorer-model>, <strongest-model>
 ```
 
-Replace every placeholder with a confirmed concrete choice. For Pi, a valid value resembles `openai-codex/gpt-5.6-sol:max`.
+Replace every placeholder with a confirmed concrete choice. For Pi, valid values resemble `openai-codex/gpt-5.6-sol:max` and `openai-codex/gpt-5.6-luna:xhigh [fast]`.
 
 Do not write host agent settings. Do not create model mappings for host agents. Existing host settings remain under user control.
 
@@ -102,7 +104,7 @@ Do not write host agent settings. Do not create model mappings for host agents. 
 
 Report the exact configuration path. List each model role line and its selected value.
 
-State that the adapter passes each configured value through the child launch `model` field. State that configuration does not create models, agents, permissions, or delegation facilities.
+State that `pstack_launch` and `pstack_panel` resolve each configured value. State that the router passes the model through the child launch `model` field. State that `[fast]` becomes the separate `fast: true` field. State that configuration does not create models, agents, permissions, or delegation facilities.
 
 If the host lacks per-child model selection, report that no configuration was written. Name the missing capability.
 

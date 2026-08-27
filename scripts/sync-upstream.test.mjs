@@ -82,6 +82,114 @@ test("a changed file under a protected prefix blocks the update", async () => {
   }
 });
 
+test("apply advances the lock when the new commit has no managed changes", async () => {
+  const fixture = await mkdtemp(join(tmpdir(), "pstack-empty-sync-test-"));
+  const source = join(fixture, "source");
+  const target = join(fixture, "target");
+  try {
+    const sourceSkill = join(source, "pstack/skills/blast-radius/SKILL.md");
+    const targetSkill = join(target, "skills/blast-radius/SKILL.md");
+    await mkdir(join(source, "pstack/skills/blast-radius"), { recursive: true });
+    await mkdir(join(target, "skills/blast-radius"), { recursive: true });
+    await writeFile(sourceSkill, "portable content\n");
+    await writeFile(targetSkill, "portable content\n");
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: source });
+    execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
+    execFileSync("git", ["config", "user.name", "pstack test"], { cwd: source });
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "baseline"], { cwd: source });
+    const baseline = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim();
+    await writeFile(join(source, "README.md"), "outside managed roots\n");
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "outside update"], { cwd: source });
+    const latest = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim();
+    await writeFile(
+      join(target, "upstream.lock.json"),
+      `${JSON.stringify({
+        repository: "local",
+        ref: "main",
+        path: "pstack",
+        commit: baseline,
+        protectedPrefixes: [],
+        protectedPaths: [],
+        sourceRoots: [{ source: "pstack/skills", destination: "skills" }],
+      })}\n`,
+    );
+
+    execFileSync(
+      process.execPath,
+      [join(process.cwd(), "scripts/sync-upstream.mjs"), "--apply", "--source", source],
+      { cwd: target, env: { ...process.env, PSTACK_SYNC_ROOT: target } },
+    );
+
+    const lock = JSON.parse(await readFile(join(target, "upstream.lock.json"), "utf8"));
+    assert.equal(lock.commit, latest);
+    assert.equal(await readFile(targetSkill, "utf8"), "portable content\n");
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("apply removes an upstream-owned file deleted after the baseline", async () => {
+  const fixture = await mkdtemp(join(tmpdir(), "pstack-delete-sync-test-"));
+  const source = join(fixture, "source");
+  const target = join(fixture, "target");
+  try {
+    const sourceSkill = join(source, "pstack/skills/removed/SKILL.md");
+    const targetSkill = join(target, "skills/removed/SKILL.md");
+    await mkdir(join(source, "pstack/skills/removed"), { recursive: true });
+    await mkdir(join(target, "skills/removed"), { recursive: true });
+    await writeFile(sourceSkill, "removed upstream\n");
+    await writeFile(targetSkill, "removed upstream\n");
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: source });
+    execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
+    execFileSync("git", ["config", "user.name", "pstack test"], { cwd: source });
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "baseline"], { cwd: source });
+    const baseline = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim();
+    await rm(sourceSkill);
+    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["commit", "-q", "-m", "remove managed skill"], { cwd: source });
+    const latest = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim();
+    await writeFile(
+      join(target, "upstream.lock.json"),
+      `${JSON.stringify({
+        repository: "local",
+        ref: "main",
+        path: "pstack",
+        commit: baseline,
+        protectedPrefixes: [],
+        protectedPaths: [],
+        sourceRoots: [{ source: "pstack/skills", destination: "skills" }],
+      })}\n`,
+    );
+
+    execFileSync(
+      process.execPath,
+      [join(process.cwd(), "scripts/sync-upstream.mjs"), "--apply", "--source", source],
+      { cwd: target, env: { ...process.env, PSTACK_SYNC_ROOT: target } },
+    );
+
+    await assert.rejects(readFile(targetSkill, "utf8"), /ENOENT/u);
+    const lock = JSON.parse(await readFile(join(target, "upstream.lock.json"), "utf8"));
+    assert.equal(lock.commit, latest);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
 test("apply updates an upstream-owned file and advances the lock", async () => {
   const fixture = await mkdtemp(join(tmpdir(), "pstack-sync-test-"));
   const source = join(fixture, "source");

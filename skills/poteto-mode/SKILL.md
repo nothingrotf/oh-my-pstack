@@ -105,9 +105,9 @@ Use only these canonical lifecycle protocols: **Bounded session**, **Panel**, **
 
 Pass concise file pointers and explicit worktree or output paths. Review every artifact and run parent verification. Use a fresh session when the unit or role changes. Agreement across independent sessions is useful evidence, not proof.
 
-Resolve the exact workflow model role before every child launch. Pass its configured choice through the adapter's per-run `model` field. Never translate a pstack model role into a host agent default.
+Resolve the exact workflow model role before every child launch. On Pi, call `pstack_launch` for a scalar role. Call `pstack_panel` for a panel role. The router binds each configured choice through the per-run `model` field. Never translate a pstack model role into a host agent default.
 
-Use `judgment and prose` for delegated prose or judgment without a more specific workflow model role. Use `hardest tasks` for the hardest ambiguous or cross-cutting delegated unit. The active playbook's specific model role wins over both general roles.
+Use `judgment and prose` for delegated prose or judgment without a more specific workflow model role. Use `hardest tasks` for the hardest ambiguous or cross-cutting delegated unit. Route either scalar role through `pstack_launch` on Pi. The active playbook's specific model role wins over both general roles.
 
 ## Writing the reply
 

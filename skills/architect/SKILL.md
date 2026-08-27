@@ -34,7 +34,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
 
 Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt. Each candidate produces a design package shaped per `references/rationale-template.md`: the caller's usage written first, then the type sketch, function signatures, module map, and prose rationale derived from it.
 
-Resolve the `architect runners` panel and pass it to the arena as the runner model role. The arena passes one entry through each child's per-run `model` field. Select execution roles from the design artifact contract. If the panel is absent, use a diverse host-supported fallback panel.
+Resolve the `architect runners` panel and pass it to the arena as the runner model role. On Pi, the arena calls `pstack_panel`. The router binds one entry through each child's per-run `model` field. Select one shared execution role from the design artifact contract. If the panel is absent, stop the Pi dispatch.
 
 Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
 
