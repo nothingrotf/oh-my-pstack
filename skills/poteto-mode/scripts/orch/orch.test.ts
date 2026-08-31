@@ -536,34 +536,101 @@ describe("Store", () => {
     });
   });
 
-  it("resolves gh-stack JSON through the CLI without invoking Graphite", async () => {
+  it("resolves the gh-stack v0.1.0 JSON contract through the CLI", async () => {
     const directory = await makeDirectory();
     const stack = await makeGitStack(directory);
     const store = join(directory, "store");
+    git({
+      repo: stack.repo,
+      args: ["branch", "feature/exc-25", "stack/open"],
+    });
+    const featureSha = git({
+      repo: stack.repo,
+      args: ["rev-parse", "feature/exc-25"],
+    });
+    const preSubmitOutput =
+      '{"trunk":"master","currentBranch":"feature/exc-25","branches":[{"name":"feature/exc-25","base":"...","isCurrent":true,"isMerged":false,"isQueued":false,"needsRebase":false}]}';
+    const submittedOutput =
+      '{"trunk":"master","currentBranch":"feature/exc-25","branches":[{"name":"feature/exc-25","base":"...","isCurrent":true,"isMerged":false,"isQueued":false,"needsRebase":false,"pr":{"number":22,"title":"feature","state":"OPEN"}}]}';
     const output = JSON.stringify({
       trunk: "main",
       currentBranch: "stack/open",
       branches: [
         {
-          branch: "stack/merged",
-          pr: { number: 20, title: "merged", state: "merged" },
+          name: "stack/merged",
+          base: "main",
+          isCurrent: false,
+          isMerged: true,
+          isQueued: false,
+          needsRebase: false,
+          pr: { number: 20, title: "merged", state: "MERGED" },
         },
         {
-          branch: "stack/closed",
-          pr: { number: 21, title: "closed", state: "closed" },
+          name: "stack/closed",
+          base: "stack/merged",
+          isCurrent: false,
+          isMerged: false,
+          isQueued: false,
+          needsRebase: false,
+          pr: { number: 21, title: "open", state: "OPEN" },
         },
         {
-          branch: "stack/open",
-          pr: { number: 22, title: "open", state: "queued" },
+          name: "stack/open",
+          base: "stack/closed",
+          isCurrent: true,
+          isMerged: false,
+          isQueued: true,
+          needsRebase: false,
+          pr: { number: 22, title: "queued", state: "QUEUED" },
         },
       ],
     });
 
     await withFakeGhStack({
       directory,
-      output,
+      output: preSubmitOutput,
       operation: async (outputPath, gtMarker) => {
         expect(runCli(["--store", store, "init"]).code).toBe(0);
+        const preSubmit = runCli([
+          "--store",
+          store,
+          "frontier",
+          "set",
+          "--repo",
+          stack.repo,
+        ]);
+        expect(preSubmit.code).toBe(1);
+        expect(preSubmit.stderr).toContain(
+          "gh-stack branch feature/exc-25 has no pull request; submit the stack before resolving the frontier"
+        );
+
+        await writeFile(outputPath, submittedOutput);
+        const submitted = runCli([
+          "--store",
+          store,
+          "--json",
+          "frontier",
+          "set",
+          "--repo",
+          stack.repo,
+          "--prs",
+          "22",
+        ]);
+        expect(submitted.code).toBe(0);
+        expect(JSON.parse(submitted.stdout)).toEqual({
+          generation: 1,
+          prs: [
+            {
+              pr: 22,
+              branches: "feature/exc-25",
+              sha: featureSha,
+              state: "OPEN",
+            },
+          ],
+          lowestUnmerged: 22,
+        });
+
+        await writeFile(outputPath, output);
         const resolved = runCli([
           "--store",
           store,
@@ -577,7 +644,7 @@ describe("Store", () => {
         ]);
         expect(resolved.code).toBe(0);
         expect(JSON.parse(resolved.stdout)).toEqual({
-          generation: 1,
+          generation: 2,
           prs: [
             {
               pr: 20,
@@ -589,7 +656,7 @@ describe("Store", () => {
               pr: 21,
               branches: "stack/closed",
               sha: stack.closedSha,
-              state: "CLOSED",
+              state: "OPEN",
             },
             {
               pr: 22,
@@ -598,7 +665,7 @@ describe("Store", () => {
               state: "OPEN",
             },
           ],
-          lowestUnmerged: 22,
+          lowestUnmerged: 21,
         });
         expect(await Bun.file(gtMarker).exists()).toBe(false);
 
@@ -637,8 +704,8 @@ describe("Store", () => {
             trunk: "main",
             currentBranch: "stack/open",
             branches: [
-              { branch: "stack/open", pr: { number: 22, state: "open" } },
-              { branch: "stack/open", pr: { number: 23, state: "open" } },
+              { name: "stack/open", pr: { number: 22, state: "OPEN" } },
+              { name: "stack/open", pr: { number: 23, state: "OPEN" } },
             ],
           },
           "gh-stack JSON contains duplicate branch stack/open"
@@ -648,8 +715,8 @@ describe("Store", () => {
             trunk: "main",
             currentBranch: "stack/open",
             branches: [
-              { branch: "stack/merged", pr: { number: 22, state: "open" } },
-              { branch: "stack/open", pr: { number: 22, state: "open" } },
+              { name: "stack/merged", pr: { number: 22, state: "OPEN" } },
+              { name: "stack/open", pr: { number: 22, state: "OPEN" } },
             ],
           },
           "gh-stack JSON contains duplicate pull request 22"
@@ -659,7 +726,7 @@ describe("Store", () => {
             trunk: "main",
             currentBranch: "stack/open",
             branches: [
-              { branch: "stack/open", pr: { number: 0, state: "open" } },
+              { name: "stack/open", pr: { number: 0, state: "OPEN" } },
             ],
           },
           "gh-stack JSON has an invalid PR number for branch stack/open"
@@ -669,18 +736,38 @@ describe("Store", () => {
             trunk: "main",
             currentBranch: "stack/open",
             branches: [
-              { branch: "stack/open", pr: { number: 22, state: "draft" } },
+              { name: "stack/open", pr: { number: 22, state: "DRAFT" } },
             ],
           },
-          "gh-stack JSON has an unknown PR state for branch stack/open: draft"
+          "gh-stack JSON has an unknown PR state for branch stack/open: DRAFT"
         );
         await rejected(
           {
             trunk: "main",
             currentBranch: "stack/open",
-            branches: [{ branch: "stack/open", pr: null }],
+            branches: [{ name: "stack/open", pr: null }],
           },
           "gh-stack branch stack/open has no pull request"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { branch: "stack/open", pr: { number: 22, state: "open" } },
+            ],
+          },
+          "gh-stack JSON has an invalid branch row"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { name: "stack/open", pr: { number: 22, state: "open" } },
+            ],
+          },
+          "gh-stack JSON has an unknown PR state for branch stack/open: open"
         );
 
         await writeFile(outputPath, output);

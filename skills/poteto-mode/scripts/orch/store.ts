@@ -1144,13 +1144,11 @@ function ghStackState({
   value: unknown;
 }): FrontierPrState {
   switch (value) {
-    case "open":
-    case "queued":
+    case "OPEN":
+    case "QUEUED":
       return "OPEN";
-    case "merged":
+    case "MERGED":
       return "MERGED";
-    case "closed":
-      return "CLOSED";
     default:
       throw new UserError(
         `gh-stack JSON has an unknown PR state for branch ${branch}: ${String(value)}`
@@ -1184,20 +1182,20 @@ function parseGhStack(raw: string): readonly GtFrontierEntry[] {
   for (const row of value.branches) {
     if (
       !isRecord(row) ||
-      typeof row.branch !== "string" ||
-      row.branch.length === 0
+      typeof row.name !== "string" ||
+      row.name.length === 0
     ) {
       throw new UserError("gh-stack JSON has an invalid branch row");
     }
-    if (seenBranches.has(row.branch)) {
+    if (seenBranches.has(row.name)) {
       throw new UserError(
-        `gh-stack JSON contains duplicate branch ${row.branch}`
+        `gh-stack JSON contains duplicate branch ${row.name}`
       );
     }
-    seenBranches.add(row.branch);
+    seenBranches.add(row.name);
     if (!isRecord(row.pr)) {
       throw new UserError(
-        `gh-stack branch ${row.branch} has no pull request; submit the stack before resolving the frontier`
+        `gh-stack branch ${row.name} has no pull request; submit the stack before resolving the frontier`
       );
     }
     if (
@@ -1206,7 +1204,7 @@ function parseGhStack(raw: string): readonly GtFrontierEntry[] {
       row.pr.number < 1
     ) {
       throw new UserError(
-        `gh-stack JSON has an invalid PR number for branch ${row.branch}`
+        `gh-stack JSON has an invalid PR number for branch ${row.name}`
       );
     }
     if (seenPrs.has(row.pr.number)) {
@@ -1216,9 +1214,9 @@ function parseGhStack(raw: string): readonly GtFrontierEntry[] {
     }
     seenPrs.add(row.pr.number);
     result.push({
-      branches: row.branch,
+      branches: row.name,
       pr: row.pr.number,
-      state: ghStackState({ branch: row.branch, value: row.pr.state }),
+      state: ghStackState({ branch: row.name, value: row.pr.state }),
     });
   }
   return result;
