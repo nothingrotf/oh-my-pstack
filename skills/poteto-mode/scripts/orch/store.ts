@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import type { Dirent } from "node:fs";
+import { statSync, type Dirent } from "node:fs";
 import {
   access,
   mkdir,
@@ -1002,6 +1002,11 @@ interface GtFrontierEntry extends GtPullRequest {
   readonly branches: string;
 }
 
+interface ResolvedFrontier {
+  readonly stacker: "gt" | "gh-stack";
+  readonly prs: readonly FrontierPr[];
+}
+
 function parseGtPullRequest({
   branch,
   detail,
@@ -1131,6 +1136,138 @@ function graphiteFrontier(repo: string): readonly GtFrontierEntry[] {
   return result;
 }
 
+function ghStackState({
+  branch,
+  value,
+}: {
+  branch: string;
+  value: unknown;
+}): FrontierPrState {
+  switch (value) {
+    case "OPEN":
+    case "QUEUED":
+      return "OPEN";
+    case "MERGED":
+      return "MERGED";
+    default:
+      throw new UserError(
+        `gh-stack JSON has an unknown PR state for branch ${branch}: ${String(value)}`
+      );
+  }
+}
+
+function parseGhStack(raw: string): readonly GtFrontierEntry[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new UserError("gh-stack returned malformed JSON");
+  }
+  if (
+    !isRecord(value) ||
+    typeof value.trunk !== "string" ||
+    value.trunk.length === 0 ||
+    typeof value.currentBranch !== "string" ||
+    value.currentBranch.length === 0 ||
+    !isUnknownArray(value.branches)
+  ) {
+    throw new UserError("gh-stack JSON has an invalid shape");
+  }
+  if (value.branches.length === 0) {
+    throw new UserError("gh-stack JSON contains an empty stack");
+  }
+  const result: GtFrontierEntry[] = [];
+  const seenBranches = new Set<string>();
+  const seenPrs = new Set<number>();
+  for (const row of value.branches) {
+    if (
+      !isRecord(row) ||
+      typeof row.name !== "string" ||
+      row.name.length === 0
+    ) {
+      throw new UserError("gh-stack JSON has an invalid branch row");
+    }
+    if (seenBranches.has(row.name)) {
+      throw new UserError(
+        `gh-stack JSON contains duplicate branch ${row.name}`
+      );
+    }
+    seenBranches.add(row.name);
+    if (!isRecord(row.pr)) {
+      throw new UserError(
+        `gh-stack branch ${row.name} has no pull request; submit the stack before resolving the frontier`
+      );
+    }
+    if (
+      typeof row.pr.number !== "number" ||
+      !Number.isSafeInteger(row.pr.number) ||
+      row.pr.number < 1
+    ) {
+      throw new UserError(
+        `gh-stack JSON has an invalid PR number for branch ${row.name}`
+      );
+    }
+    if (seenPrs.has(row.pr.number)) {
+      throw new UserError(
+        `gh-stack JSON contains duplicate pull request ${row.pr.number}`
+      );
+    }
+    seenPrs.add(row.pr.number);
+    result.push({
+      branches: row.name,
+      pr: row.pr.number,
+      state: ghStackState({ branch: row.name, value: row.pr.state }),
+    });
+  }
+  return result;
+}
+
+function ghStackFrontier(repo: string): readonly GtFrontierEntry[] {
+  let raw: string;
+  try {
+    raw = execFileSync("gh", ["stack", "view", "--json"], {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...process.env, NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new UserError(`gh-stack view --json failed: ${errorMessage(error)}`);
+  }
+  return parseGhStack(raw);
+}
+
+function hasGhStackMetadata(repo: string): boolean {
+  let raw: string;
+  try {
+    raw = execFileSync("git", ["rev-parse", "--git-path", "gh-stack"], {
+      cwd: repo,
+      encoding: "utf8",
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new UserError(
+      `gh-stack metadata detection failed: ${errorMessage(error)}`
+    );
+  }
+  const path = raw.trim();
+  if (path.length === 0) {
+    throw new UserError("gh-stack metadata detection returned an empty path");
+  }
+  try {
+    statSync(resolve(repo, path));
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      return false;
+    }
+    throw new UserError(
+      `gh-stack metadata inspection failed: ${errorMessage(error)}`
+    );
+  }
+}
+
 function branchSha({
   branch,
   repo,
@@ -1158,19 +1295,36 @@ function branchSha({
   return sha;
 }
 
-function resolveFrontier(repo: string): readonly FrontierPr[] {
-  return graphiteFrontier(repo).map((row) => ({
-    ...row,
-    sha: branchSha({ branch: row.branches, repo }),
-  }));
+function resolveFrontier(repo: string): ResolvedFrontier {
+  const stacker = hasGhStackMetadata(repo) ? "gh-stack" : "gt";
+  const entries =
+    stacker === "gh-stack" ? ghStackFrontier(repo) : graphiteFrontier(repo);
+  try {
+    return {
+      stacker,
+      prs: entries.map((row) => ({
+        ...row,
+        sha: branchSha({ branch: row.branches, repo }),
+      })),
+    };
+  } catch (error) {
+    if (stacker === "gh-stack") {
+      throw new UserError(
+        `gh-stack frontier resolution failed: ${errorMessage(error)}`
+      );
+    }
+    throw error;
+  }
 }
 
 function validateFrontierPin({
   actual,
   expected,
+  stacker,
 }: {
   actual: readonly number[];
   expected: readonly number[];
+  stacker: "gt" | "gh-stack";
 }): void {
   if (
     actual.length === expected.length &&
@@ -1184,14 +1338,14 @@ function validateFrontierPin({
   const extra = actual.filter((pr) => !expectedSet.has(pr));
   const drift: string[] = [];
   if (missing.length > 0) {
-    drift.push(`missing from gt: ${missing.join(",")}`);
+    drift.push(`missing from ${stacker}: ${missing.join(",")}`);
   }
   if (extra.length > 0) {
-    drift.push(`extra in gt: ${extra.join(",")}`);
+    drift.push(`extra in ${stacker}: ${extra.join(",")}`);
   }
   if (missing.length === 0 && extra.length === 0) {
     drift.push(
-      `order differs: expected ${expected.join(",")}; gt ${actual.join(",")}`
+      `order differs: expected ${expected.join(",")}; ${stacker} ${actual.join(",")}`
     );
   }
   throw new UserError(`frontier pin mismatch: ${drift.join("; ")}`);
@@ -1492,17 +1646,19 @@ export function openStore(
           throw new UserError("--prs must not contain duplicates");
         }
         const old = await readFrontier(store);
-        const prs = resolveFrontier(repo);
+        const frontier = resolveFrontier(repo);
         if (pin !== undefined) {
           validateFrontierPin({
-            actual: prs.map((row) => row.pr),
+            actual: frontier.prs.map((row) => row.pr),
             expected: pin,
+            stacker: frontier.stacker,
           });
         }
         const value: Frontier = {
           generation: old.generation + 1,
-          prs,
-          lowestUnmerged: prs.find((row) => row.state === "OPEN")?.pr ?? null,
+          prs: frontier.prs,
+          lowestUnmerged:
+            frontier.prs.find((row) => row.state === "OPEN")?.pr ?? null,
         };
         await atomicWrite(
           join(store, "frontier.json"),
