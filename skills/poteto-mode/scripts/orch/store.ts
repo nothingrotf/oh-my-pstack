@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, type Dirent } from "node:fs";
+import { statSync, type Dirent } from "node:fs";
 import {
   access,
   mkdir,
@@ -1246,11 +1246,26 @@ function hasGhStackMetadata(repo: string): boolean {
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
-  } catch {
-    return false;
+  } catch (error) {
+    throw new UserError(
+      `gh-stack metadata detection failed: ${errorMessage(error)}`
+    );
   }
   const path = raw.trim();
-  return path.length > 0 && existsSync(resolve(repo, path));
+  if (path.length === 0) {
+    throw new UserError("gh-stack metadata detection returned an empty path");
+  }
+  try {
+    statSync(resolve(repo, path));
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      return false;
+    }
+    throw new UserError(
+      `gh-stack metadata inspection failed: ${errorMessage(error)}`
+    );
+  }
 }
 
 function branchSha({

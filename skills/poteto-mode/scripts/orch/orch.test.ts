@@ -10,7 +10,7 @@ import {
 } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   NotFoundError,
   UserError,
@@ -106,26 +106,37 @@ async function withFakeGhStack<T>({
   directory,
   operation,
   output,
+  repo = join(directory, "repo"),
 }: {
   directory: string;
-  operation: (outputPath: string, gtMarker: string) => Promise<T>;
+  operation: (
+    outputPath: string,
+    gtMarker: string,
+    gitFailureMarker: string
+  ) => Promise<T>;
   output: string;
+  repo?: string;
 }): Promise<T> {
   const bin = join(directory, "bin");
   const outputPath = join(directory, "gh-output.json");
   const gtMarker = join(directory, "gt-invoked");
+  const gitFailureMarker = join(directory, "git-metadata-failure");
+  const realGit = Bun.which("git");
+  if (!realGit) {
+    throw new Error("git executable was not found");
+  }
   const metadata = git({
-    repo: join(directory, "repo"),
+    repo,
     args: ["rev-parse", "--git-path", "gh-stack"],
   });
-  await writeFile(join(directory, "repo", metadata), "{}\n");
+  await writeFile(resolve(repo, metadata), "{}\n");
   await mkdir(bin);
   await writeFile(outputPath, output);
   await writeFile(
     join(bin, "gh"),
     `#!/usr/bin/env bash
 set -euo pipefail
-if [ "$(pwd -P)" != "${realpathSync(join(directory, "repo"))}" ]; then
+if [ "$(pwd -P)" != "${realpathSync(repo)}" ]; then
   printf 'gh ran outside the fixture repo: %s\\n' "$(pwd -P)" >&2
   exit 2
 fi
@@ -144,13 +155,25 @@ printf 'gt must not run in a gh-stack worktree\\n' >&2
 exit 2
 `
   );
+  await writeFile(
+    join(bin, "git"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+if [ -f "${gitFailureMarker}" ] && [ "$*" = "rev-parse --git-path gh-stack" ]; then
+  printf 'metadata lookup failed\\n' >&2
+  exit 2
+fi
+exec "${realGit}" "$@"
+`
+  );
   await chmod(join(bin, "gh"), 0o755);
   await chmod(join(bin, "gt"), 0o755);
+  await chmod(join(bin, "git"), 0o755);
 
   const originalPath = process.env.PATH;
   process.env.PATH = `${bin}:${originalPath ?? ""}`;
   try {
-    return await operation(outputPath, gtMarker);
+    return await operation(outputPath, gtMarker, gitFailureMarker);
   } finally {
     if (originalPath === undefined) {
       delete process.env.PATH;
@@ -589,7 +612,7 @@ describe("Store", () => {
     await withFakeGhStack({
       directory,
       output: preSubmitOutput,
-      operation: async (outputPath, gtMarker) => {
+      operation: async (outputPath, gtMarker, gitFailureMarker) => {
         expect(runCli(["--store", store, "init"]).code).toBe(0);
         const preSubmit = runCli([
           "--store",
@@ -785,6 +808,82 @@ describe("Store", () => {
         expect(pin.stderr).toContain(
           "frontier pin mismatch: order differs: expected 22,21,20; gh-stack 20,21,22"
         );
+
+        await writeFile(gitFailureMarker, "fail\n");
+        const detectionFailure = runCli([
+          "--store",
+          store,
+          "frontier",
+          "set",
+          "--repo",
+          stack.repo,
+        ]);
+        expect(detectionFailure.code).toBe(1);
+        expect(detectionFailure.stderr).toContain(
+          "gh-stack metadata detection failed"
+        );
+        expect(await Bun.file(gtMarker).exists()).toBe(false);
+      },
+    });
+  });
+
+  it("resolves gh-stack metadata from a linked worktree", async () => {
+    const directory = await makeDirectory();
+    const stack = await makeGitStack(directory);
+    const linked = join(directory, "linked");
+    const store = join(directory, "store");
+    git({
+      repo: stack.repo,
+      args: ["worktree", "add", "-b", "stack/linked", linked, "stack/open"],
+    });
+    const linkedSha = git({ repo: linked, args: ["rev-parse", "stack/linked"] });
+    const output = JSON.stringify({
+      trunk: "main",
+      currentBranch: "stack/linked",
+      branches: [
+        {
+          name: "stack/linked",
+          base: "stack/open",
+          isCurrent: true,
+          isMerged: false,
+          isQueued: false,
+          needsRebase: false,
+          pr: { number: 23, title: "linked", state: "OPEN" },
+        },
+      ],
+    });
+
+    await withFakeGhStack({
+      directory,
+      output,
+      repo: linked,
+      operation: async (_outputPath, gtMarker) => {
+        expect(runCli(["--store", store, "init"]).code).toBe(0);
+        const result = runCli([
+          "--store",
+          store,
+          "--json",
+          "frontier",
+          "set",
+          "--repo",
+          linked,
+          "--prs",
+          "23",
+        ]);
+        expect(result.code).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual({
+          generation: 1,
+          prs: [
+            {
+              pr: 23,
+              branches: "stack/linked",
+              sha: linkedSha,
+              state: "OPEN",
+            },
+          ],
+          lowestUnmerged: 23,
+        });
+        expect(await Bun.file(gtMarker).exists()).toBe(false);
       },
     });
   });
