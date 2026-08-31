@@ -102,6 +102,64 @@ async function makeGitStack(directory: string): Promise<{
   };
 }
 
+async function withFakeGhStack<T>({
+  directory,
+  operation,
+  output,
+}: {
+  directory: string;
+  operation: (outputPath: string, gtMarker: string) => Promise<T>;
+  output: string;
+}): Promise<T> {
+  const bin = join(directory, "bin");
+  const outputPath = join(directory, "gh-output.json");
+  const gtMarker = join(directory, "gt-invoked");
+  const metadata = git({
+    repo: join(directory, "repo"),
+    args: ["rev-parse", "--git-path", "gh-stack"],
+  });
+  await writeFile(join(directory, "repo", metadata), "{}\n");
+  await mkdir(bin);
+  await writeFile(outputPath, output);
+  await writeFile(
+    join(bin, "gh"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$(pwd -P)" != "${realpathSync(join(directory, "repo"))}" ]; then
+  printf 'gh ran outside the fixture repo: %s\\n' "$(pwd -P)" >&2
+  exit 2
+fi
+if [ "$*" != "stack view --json" ]; then
+  printf 'unexpected gh arguments: %s\\n' "$*" >&2
+  exit 2
+fi
+cat "${outputPath}"
+`
+  );
+  await writeFile(
+    join(bin, "gt"),
+    `#!/usr/bin/env bash
+printf invoked > "${gtMarker}"
+printf 'gt must not run in a gh-stack worktree\\n' >&2
+exit 2
+`
+  );
+  await chmod(join(bin, "gh"), 0o755);
+  await chmod(join(bin, "gt"), 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${bin}:${originalPath ?? ""}`;
+  try {
+    return await operation(outputPath, gtMarker);
+  } finally {
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+  }
+}
+
 async function withFakeGt<T>({
   directory,
   operation,
@@ -474,6 +532,172 @@ describe("Store", () => {
             prs: [10, 10],
           })
         ).rejects.toThrow("--prs must not contain duplicates");
+      },
+    });
+  });
+
+  it("resolves gh-stack JSON through the CLI without invoking Graphite", async () => {
+    const directory = await makeDirectory();
+    const stack = await makeGitStack(directory);
+    const store = join(directory, "store");
+    const output = JSON.stringify({
+      trunk: "main",
+      currentBranch: "stack/open",
+      branches: [
+        {
+          branch: "stack/merged",
+          pr: { number: 20, title: "merged", state: "merged" },
+        },
+        {
+          branch: "stack/closed",
+          pr: { number: 21, title: "closed", state: "closed" },
+        },
+        {
+          branch: "stack/open",
+          pr: { number: 22, title: "open", state: "queued" },
+        },
+      ],
+    });
+
+    await withFakeGhStack({
+      directory,
+      output,
+      operation: async (outputPath, gtMarker) => {
+        expect(runCli(["--store", store, "init"]).code).toBe(0);
+        const resolved = runCli([
+          "--store",
+          store,
+          "--json",
+          "frontier",
+          "set",
+          "--repo",
+          stack.repo,
+          "--prs",
+          "20,21,22",
+        ]);
+        expect(resolved.code).toBe(0);
+        expect(JSON.parse(resolved.stdout)).toEqual({
+          generation: 1,
+          prs: [
+            {
+              pr: 20,
+              branches: "stack/merged",
+              sha: stack.mergedSha,
+              state: "MERGED",
+            },
+            {
+              pr: 21,
+              branches: "stack/closed",
+              sha: stack.closedSha,
+              state: "CLOSED",
+            },
+            {
+              pr: 22,
+              branches: "stack/open",
+              sha: stack.openSha,
+              state: "OPEN",
+            },
+          ],
+          lowestUnmerged: 22,
+        });
+        expect(await Bun.file(gtMarker).exists()).toBe(false);
+
+        const rejected = async (
+          value: unknown,
+          message: string
+        ): Promise<void> => {
+          await writeFile(
+            outputPath,
+            typeof value === "string" ? value : JSON.stringify(value)
+          );
+          const result = runCli([
+            "--store",
+            store,
+            "frontier",
+            "set",
+            "--repo",
+            stack.repo,
+          ]);
+          expect(result.code).toBe(1);
+          expect(result.stderr).toContain(message);
+          expect(await Bun.file(gtMarker).exists()).toBe(false);
+        };
+
+        await rejected("{", "gh-stack returned malformed JSON");
+        await rejected(
+          { trunk: "main", branches: [] },
+          "gh-stack JSON has an invalid shape"
+        );
+        await rejected(
+          { trunk: "main", currentBranch: "main", branches: [] },
+          "gh-stack JSON contains an empty stack"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { branch: "stack/open", pr: { number: 22, state: "open" } },
+              { branch: "stack/open", pr: { number: 23, state: "open" } },
+            ],
+          },
+          "gh-stack JSON contains duplicate branch stack/open"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { branch: "stack/merged", pr: { number: 22, state: "open" } },
+              { branch: "stack/open", pr: { number: 22, state: "open" } },
+            ],
+          },
+          "gh-stack JSON contains duplicate pull request 22"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { branch: "stack/open", pr: { number: 0, state: "open" } },
+            ],
+          },
+          "gh-stack JSON has an invalid PR number for branch stack/open"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [
+              { branch: "stack/open", pr: { number: 22, state: "draft" } },
+            ],
+          },
+          "gh-stack JSON has an unknown PR state for branch stack/open: draft"
+        );
+        await rejected(
+          {
+            trunk: "main",
+            currentBranch: "stack/open",
+            branches: [{ branch: "stack/open", pr: null }],
+          },
+          "gh-stack branch stack/open has no pull request"
+        );
+
+        await writeFile(outputPath, output);
+        const pin = runCli([
+          "--store",
+          store,
+          "frontier",
+          "set",
+          "--repo",
+          stack.repo,
+          "--prs",
+          "22,21,20",
+        ]);
+        expect(pin.code).toBe(1);
+        expect(pin.stderr).toContain(
+          "frontier pin mismatch: order differs: expected 22,21,20; gh-stack 20,21,22"
+        );
       },
     });
   });
